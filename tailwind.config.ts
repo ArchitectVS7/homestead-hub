@@ -1,0 +1,87 @@
+import type { Config } from 'tailwindcss'
+
+const config: Config = {
+  content: [
+    './src/pages/**/*.{js,ts,jsx,tsx,mdx}',
+    './src/components/**/*.{js,ts,jsx,tsx,mdx}',
+    './src/app/**/*.{js,ts,jsx,tsx,mdx}',
+  ],
+  theme: {
+    extend: {
+      colors: {
+        // Earthy, homestead-inspired palette
+        earth: {
+          50: '#faf6f1',
+          100: '#f0e6d8',
+          200: '#e1cdb1',
+          300: '#cfae84',
+          400: '#bf9160',
+          500: '#b17d4a',
+          600: '#9a653e',
+          700: '#7d4e35',
+          800: '#674131',
+          900: '#56382b',
+          950: '#301c15',
+        },
+        soil: {
+          50: '#f9f7f5',
+          100: '#f0ebe5',
+          200: '#e1d6ca',
+          300: '#cdbaa8',
+          400: '#b69a83',
+          500: '#a4826a',
+          600: '#96725d',
+          700: '#7d5e4e',
+          800: '#674e43',
+          900: '#3d3029',
+          950: '#221a16',
+        },
+        forest: {
+          50: '#f3f8f4',
+          100: '#e3efe5',
+          200: '#c8dfcc',
+          300: '#9fc7a7',
+          400: '#6fa87c',
+          500: '#4d8b5c',
+          600: '#3b7048',
+          700: '#315a3b',
+          800: '#2a4932',
+          900: '#243c2b',
+          950: '#102116',
+        },
+        harvest: {
+          50: '#fefbec',
+          100: '#fcf4cb',
+          200: '#f9e793',
+          300: '#f5d455',
+          400: '#f1c02a',
+          500: '#e1a315',
+          600: '#c67d0e',
+          700: '#a45910',
+          800: '#864614',
+          900: '#6f3a14',
+          950: '#401d07',
+        },
+        barn: {
+          50: '#fef2f2',
+          100: '#fee2e2',
+          200: '#fecaca',
+          300: '#fca5a5',
+          400: '#f87171',
+          500: '#ef4444',
+          600: '#c92a2a',
+          700: '#a51d1d',
+          800: '#881b1b',
+          900: '#701a1a',
+          950: '#3c0a0a',
+        },
+      },
+      fontFamily: {
+        sans: ['var(--font-inter)', 'system-ui', 'sans-serif'],
+        display: ['var(--font-display)', 'system-ui', 'sans-serif'],
+      },
+    },
+  },
+  plugins: [],
+}
+export default config

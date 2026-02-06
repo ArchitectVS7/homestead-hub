@@ -1,0 +1,344 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================
+// STORAGE MODULE - Emergency Food Storage
+// ============================================
+
+model StorageItem {
+  id             String          @id @default(cuid())
+  name           String
+  category       String          // grains, legumes, canned, freeze-dried, etc.
+  quantity       Float
+  unit           String          // lbs, oz, gallons, cans, bags, etc.
+  location       String?         // pantry, basement, shed, etc.
+  purchaseDate   DateTime?
+  expirationDate DateTime?
+  calories       Int?            // per unit
+  notes          String?
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+
+  @@index([category])
+  @@index([expirationDate])
+}
+
+// ============================================
+// GARDEN MODULE - Planting & Harvest
+// ============================================
+
+model Crop {
+  id                   String          @id @default(cuid())
+  name                 String
+  variety              String?
+  daysToMaturity       Int?
+  plantingDepth        String?         // e.g., "1/4 inch"
+  spacing              String?         // e.g., "12 inches"
+  sunRequirement       String?         // full, partial, shade
+  waterRequirement     String?         // low, medium, high
+  companionPlants      String?   // JSON array, e.g. "[\"tomato\",\"basil\"]"
+  incompatiblePlants   String?   // JSON array
+  notes                String?
+  createdAt            DateTime        @default(now())
+  updatedAt            DateTime        @updatedAt
+
+  plantings Planting[]
+}
+
+model Planting {
+  id              String    @id @default(cuid())
+  cropId          String
+  crop            Crop      @relation(fields: [cropId], references: [id], onDelete: Cascade)
+  location        String    // bed name, row number, etc.
+  plantDate       DateTime
+  transplantDate  DateTime?
+  expectedHarvest DateTime?
+  actualHarvest   DateTime?
+  quantity        Int?      // number of plants
+  yield           Float?    // actual yield amount
+  yieldUnit       String?   // lbs, count, etc.
+  success         Boolean?
+  notes           String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([cropId])
+  @@index([plantDate])
+}
+
+// ============================================
+// EQUIPMENT MODULE - Maintenance Tracking
+// ============================================
+
+model Equipment {
+  id                   String              @id @default(cuid())
+  name                 String
+  category             String              // tractor, mower, chainsaw, etc.
+  make                 String?
+  model                String?
+  serialNumber         String?
+  purchaseDate         DateTime?
+  purchasePrice        Float?
+  location             String?
+  status               String              @default("operational") // operational, needs-service, out-of-service
+  serviceIntervalHours Int?
+  serviceIntervalDays  Int?
+  currentHours         Float?
+  lastServiceDate      DateTime?
+  lastServiceHours     Float?
+  notes                String?
+  createdAt            DateTime            @default(now())
+  updatedAt            DateTime            @updatedAt
+
+  maintenanceRecords MaintenanceRecord[]
+
+  @@index([category])
+  @@index([status])
+}
+
+model MaintenanceRecord {
+  id           String    @id @default(cuid())
+  equipmentId  String
+  equipment    Equipment @relation(fields: [equipmentId], references: [id], onDelete: Cascade)
+  date         DateTime
+  type         String    // oil-change, repair, inspection, etc.
+  description  String
+  hoursAtService Float?
+  cost         Float?
+  parts        String?   // JSON array of part names
+  performedBy  String?
+  notes        String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@index([equipmentId])
+  @@index([date])
+}
+
+// ============================================
+// LIVESTOCK MODULE
+// ============================================
+
+model Animal {
+  id           String    @id @default(cuid())
+  name         String?
+  tag          String?   // ear tag, leg band, etc.
+  type         String    // chicken, cow, goat, etc.
+  breed        String?
+  sex          String?   // male, female, unknown
+  birthDate    DateTime?
+  acquiredDate DateTime?
+  status       String    @default("active") // active, sold, deceased, processed
+  parentId     String?
+  parent       Animal?   @relation("AnimalLineage", fields: [parentId], references: [id])
+  offspring    Animal[]  @relation("AnimalLineage")
+  notes        String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  healthRecords   HealthRecord[]
+  productionLogs  ProductionLog[]
+
+  @@index([type])
+  @@index([status])
+}
+
+model HealthRecord {
+  id          String   @id @default(cuid())
+  animalId    String
+  animal      Animal   @relation(fields: [animalId], references: [id], onDelete: Cascade)
+  date        DateTime
+  type        String   // vaccination, medication, vet-visit, observation
+  description String
+  medication  String?
+  dosage      String?
+  cost        Float?
+  performedBy String?
+  nextDue     DateTime?
+  notes       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([animalId])
+  @@index([date])
+}
+
+model ProductionLog {
+  id        String   @id @default(cuid())
+  animalId  String
+  animal    Animal   @relation(fields: [animalId], references: [id], onDelete: Cascade)
+  date      DateTime
+  type      String   // eggs, milk, wool, etc.
+  quantity  Float
+  unit      String
+  quality   String?  // grade A, B, etc.
+  notes     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([animalId])
+  @@index([date])
+}
+
+// ============================================
+// WEATHER MODULE
+// ============================================
+
+model WeatherSnapshot {
+  id            String   @id @default(cuid())
+  timestamp     DateTime
+  temperature   Float    // fahrenheit
+  feelsLike     Float?
+  humidity      Int?     // percentage
+  windSpeed     Float?   // mph
+  windDirection String?
+  precipitation Float?   // inches
+  conditions    String?  // clear, cloudy, rain, snow, etc.
+  pressure      Float?   // hPa
+  uvIndex       Int?
+  source        String?  // manual, openweather, etc.
+  notes         String?
+  createdAt     DateTime @default(now())
+
+  @@index([timestamp])
+}
+
+// ============================================
+// TASKS MODULE - Recurring Tasks
+// ============================================
+
+model Task {
+  id              String    @id @default(cuid())
+  title           String
+  description     String?
+  category        String?   // garden, livestock, equipment, storage, general
+  priority        String    @default("medium") // low, medium, high, urgent
+  recurrenceRule  String?   // iCal RRULE format
+  nextDue         DateTime?
+  lastCompleted   DateTime?
+  estimatedMinutes Int?
+  assignedTo      String?
+  notes           String?
+  isActive        Boolean   @default(true)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  completions TaskCompletion[]
+
+  @@index([category])
+  @@index([nextDue])
+  @@index([isActive])
+}
+
+model TaskCompletion {
+  id          String   @id @default(cuid())
+  taskId      String
+  task        Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  completedAt DateTime @default(now())
+  completedBy String?
+  duration    Int?     // actual minutes taken
+  notes       String?
+  createdAt   DateTime @default(now())
+
+  @@index([taskId])
+  @@index([completedAt])
+}
+
+// ============================================
+// RESOURCES MODULE - Consumables Tracking
+// ============================================
+
+model ResourceLog {
+  id        String   @id @default(cuid())
+  type      String   // water, fuel, seeds, feed, propane, etc.
+  action    String   // usage, purchase, adjustment
+  quantity  Float
+  unit      String   // gallons, lbs, bags, etc.
+  date      DateTime @default(now())
+  cost      Float?
+  vendor    String?
+  notes     String?
+  createdAt DateTime @default(now())
+
+  @@index([type])
+  @@index([date])
+}
+
+// ============================================
+// PREPAREDNESS MODULE - Emergency Checklists
+// ============================================
+
+model Checklist {
+  id          String          @id @default(cuid())
+  name        String
+  description String?
+  category    String?         // evacuation, shelter-in-place, power-outage, etc.
+  isTemplate  Boolean         @default(false)
+  notes       String?
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  items ChecklistItem[]
+
+  @@index([category])
+}
+
+model ChecklistItem {
+  id           String    @id @default(cuid())
+  checklistId  String
+  checklist    Checklist @relation(fields: [checklistId], references: [id], onDelete: Cascade)
+  title        String
+  description  String?
+  isCompleted  Boolean   @default(false)
+  completedAt  DateTime?
+  sortOrder    Int       @default(0)
+  notes        String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@index([checklistId])
+}
+
+// ============================================
+// SETTINGS - Application Configuration
+// ============================================
+
+model Settings {
+  id                    String   @id @default(cuid())
+  hashedPIN             String?  // bcrypt hash of PIN
+  sessionTTLDays        Int      @default(7)
+  hardinessZone         String?
+  zipCode               String?
+  latitude              Float?
+  longitude             Float?
+  unitPreference        String   @default("imperial") // imperial or metric
+  expirationWarningDays Int      @default(30)
+  weatherAPIKey         String?
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+}
+
+// ============================================
+// NOTIFICATIONS MODULE
+// ============================================
+
+model Notification {
+  id          String   @id @default(cuid())
+  type        String   // warning, alert, info, success
+  title       String
+  description String
+  source      String   // storage, equipment, tasks, weather, health
+  sourceId    String?  // ID of related record
+  isRead      Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  
+  @@index([isRead])
+  @@index([createdAt])
+}
+
