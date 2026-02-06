@@ -1,11 +1,11 @@
-import { 
-  Package, 
-  Sprout, 
-  Wrench, 
+import {
+  Package,
+  Sprout,
+  Wrench,
   Dog,
-  CloudSun, 
-  CheckSquare, 
-  Droplets, 
+  CloudSun,
+  CheckSquare,
+  Droplets,
   ShieldAlert,
   Database,
   Wifi,
@@ -104,7 +104,7 @@ export default function LandingPage() {
               <a href="/login" className="text-earth-600 hover:text-earth-900 font-medium transition-colors">
                 Sign In
               </a>
-              <a href="/register" className="btn-primary flex items-center gap-2">
+              <a href="/setup" className="btn-primary flex items-center gap-2">
                 Get Started
                 <ArrowRight className="w-4 h-4" />
               </a>
@@ -125,11 +125,11 @@ export default function LandingPage() {
             <span className="text-forest-600"> With Confidence</span>
           </h1>
           <p className="text-xl text-earth-600 mb-8 max-w-2xl mx-auto text-balance">
-            A comprehensive, self-hosted application for engineers, farmers, and survivalists 
+            A comprehensive, self-hosted application for engineers, farmers, and survivalists
             who need complete control over their homestead data. No cloud. No subscriptions. No compromises.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <a href="/register" className="btn-primary text-lg py-3 px-8 flex items-center justify-center gap-2">
+            <a href="/setup" className="btn-primary text-lg py-3 px-8 flex items-center justify-center gap-2">
               Start Managing Your Homestead
               <ArrowRight className="w-5 h-5" />
             </a>
@@ -170,8 +170,8 @@ export default function LandingPage() {
           </div>
           <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6">
             {features.map((feature) => (
-              <div 
-                key={feature.title} 
+              <div
+                key={feature.title}
                 className="card hover:shadow-md transition-shadow duration-200 group"
               >
                 <div className={`w-12 h-12 ${feature.color} rounded-xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform duration-200`}>
@@ -194,7 +194,7 @@ export default function LandingPage() {
                 Your Homestead at a Glance
               </h2>
               <p className="text-earth-300 text-lg mb-8">
-                A powerful dashboard shows you everything that matters: expiring supplies, 
+                A powerful dashboard shows you everything that matters: expiring supplies,
                 upcoming tasks, weather alerts, and resource levels. Take action before problems arise.
               </p>
               <ul className="space-y-4">
@@ -280,7 +280,7 @@ export default function LandingPage() {
           </p>
           <div className="flex flex-wrap justify-center gap-4">
             {['Next.js 14', 'TypeScript', 'PostgreSQL', 'Prisma', 'Tailwind CSS', 'PWA'].map((tech) => (
-              <span 
+              <span
                 key={tech}
                 className="bg-earth-100 text-earth-700 px-4 py-2 rounded-lg font-medium"
               >
@@ -300,7 +300,7 @@ export default function LandingPage() {
           <p className="text-xl text-forest-100 mb-8">
             Your homestead deserves software that works as hard as you do.
           </p>
-          <a href="/register" className="inline-flex items-center gap-2 bg-white text-forest-700 font-bold py-4 px-8 rounded-lg text-lg hover:bg-forest-50 transition-colors">
+          <a href="/setup" className="inline-flex items-center gap-2 bg-white text-forest-700 font-bold py-4 px-8 rounded-lg text-lg hover:bg-forest-50 transition-colors">
             Get Started Now
             <ArrowRight className="w-5 h-5" />
           </a>

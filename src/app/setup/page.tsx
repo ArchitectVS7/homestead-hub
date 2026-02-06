@@ -1,3 +1,36 @@
+/**
+ * Setup Page - First-Time PIN Creation
+ *
+ * The initial setup page where users create their PIN on first run.
+ * This is a one-time setup that cannot be repeated (PIN change happens in settings).
+ *
+ * Security Features:
+ * - Client-side validation (PIN match, length)
+ * - Server-side hashing with bcrypt
+ * - Prevents duplicate setup attempts
+ * - No password recovery (by design)
+ *
+ * User Flow:
+ * 1. User visits app for first time
+ * 2. Redirected to /setup (no PIN exists)
+ * 3. Creates PIN with confirmation
+ * 4. PIN is hashed and stored
+ * 5. Session created automatically
+ * 6. Redirected to /dashboard
+ * 7. Onboarding tour appears
+ *
+ * Important Notes:
+ * - This is a Client Component (needs form interactivity)
+ * - PIN is hashed before sending to server
+ * - No recovery mechanism (user responsibility)
+ * - Consider backing up database with PIN
+ *
+ * Related:
+ * - Action: src/actions/auth.ts (setupPIN)
+ * - Login: src/app/login/page.tsx
+ * - Settings: src/app/dashboard/settings (PIN change)
+ */
+
 "use client";
 
 import { useState } from "react";
@@ -7,35 +40,56 @@ import { ShieldCheck, Loader2 } from "lucide-react";
 
 export default function SetupPage() {
     const router = useRouter();
+
+    // Form state
     const [pin, setPin] = useState("");
     const [confirmPin, setConfirmPin] = useState("");
     const [error, setError] = useState("");
     const [isLoading, setIsLoading] = useState(false);
 
+    /**
+     * Handle PIN setup form submission
+     *
+     * Validation Steps:
+     * 1. Client-side: PIN match validation
+     * 2. Client-side: Minimum length validation
+     * 3. Server-side: Zod schema validation
+     * 4. Server-side: bcrypt hashing
+     * 5. Server-side: Database storage
+     * 6. Server-side: Session creation
+     *
+     * Success: Redirect to dashboard
+     * Failure: Display error, re-enable form
+     */
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        setError("");
+        setError(""); // Clear any previous errors
 
-        // Validate PIN match
+        // Client-side validation: PINs must match
         if (pin !== confirmPin) {
             setError("PINs do not match");
             return;
         }
 
-        // Validate PIN length
+        // Client-side validation: Minimum length
+        // Server will also validate this, but client-side is faster UX
         if (pin.length < 4) {
             setError("PIN must be at least 4 characters");
             return;
         }
 
-        setIsLoading(true);
+        setIsLoading(true); // Disable form, show loading state
 
+        // Call server action (hashing happens server-side for security)
         const result = await setupPIN(pin);
 
         if (result.success) {
+            // Session is automatically created by setupPIN
+            // Navigate to dashboard and refresh to load session
             router.push("/dashboard");
             router.refresh();
         } else {
+            // Show error and re-enable form
             setError(result.error || "Setup failed");
             setIsLoading(false);
         }

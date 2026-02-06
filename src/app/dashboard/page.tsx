@@ -1,3 +1,35 @@
+/**
+ * Dashboard Page - Homestead Command Center
+ *
+ * The main landing page after login, providing at-a-glance visibility
+ * into all critical homestead operations.
+ *
+ * Key Features:
+ * - Quick stats cards (expiring items, urgent tasks, etc.)
+ * - Priority tasks list (top 5 upcoming)
+ * - Expiring items widget (next 30 days)
+ * - Onboarding tour for first-time users
+ *
+ * Data Sources:
+ * - Storage: Items expiring within 30 days
+ * - Tasks: All active tasks (filtered by priority)
+ * - Onboarding: Status to show/hide tour
+ *
+ * Server-Side Rendering:
+ * This is an async Server Component that fetches data at request time.
+ * Parallel fetching (Promise.all) optimizes performance.
+ *
+ * Layout:
+ * - Wrapped in dashboard layout (sidebar navigation)
+ * - Responsive grid for stats cards
+ * - Two-column layout for tasks/expiring items
+ *
+ * Related:
+ * - Layout: src/app/dashboard/layout.tsx
+ * - Onboarding: src/app/dashboard/onboarding-wrapper.tsx
+ * - Actions: src/actions/storage.ts, src/actions/tasks.ts
+ */
+
 import {
   AlertTriangle,
   Calendar,
@@ -12,17 +44,37 @@ import {
 import Link from "next/link";
 import { getExpiringItems } from "@/actions/storage";
 import { getTasks } from "@/actions/tasks";
+import { getOnboardingStatus } from "@/actions/onboarding";
 import { formatDate, cn } from "@/lib/utils";
+import { OnboardingWrapper } from "./onboarding-wrapper";
 
 export default async function DashboardPage() {
-  const [expiringItems, activeTasks] = await Promise.all([
-    getExpiringItems(30),
-    getTasks({ status: "active" }),
+  // Fetch data in parallel for optimal performance
+  // Using Promise.all ensures all requests happen simultaneously
+  const [expiringItems, activeTasks, onboardingStatus] = await Promise.all([
+    getExpiringItems(30), // Items expiring in next 30 days
+    getTasks({ status: "active" }), // All tasks not marked completed
+    getOnboardingStatus(), // Check if user needs to see tour
   ]);
 
+  // Filter and slice data for dashboard widgets
   const urgentTasks = activeTasks.filter((t) => t.priority === "urgent");
   const upcomingTasks = activeTasks.slice(0, 5); // Take top 5 due soonest
 
+  /**
+   * Quick Stats Cards Configuration
+   *
+   * Each stat card shows:
+   * - label: Display name
+   * - value: Primary metric (count or status)
+   * - change: Subtitle/context
+   * - icon: Lucide icon component
+   * - color: Icon/text color (theme-based)
+   * - bgColor: Icon container background
+   * - href: Link destination on click
+   *
+   * Design: Color-coded by urgency/module type
+   */
   const quickStats = [
     {
       label: "Items Expiring Soon",
@@ -63,8 +115,10 @@ export default async function DashboardPage() {
   ];
 
   return (
-    <div className="space-y-8">
-      {/* Welcome Section */}
+    <>
+      <OnboardingWrapper shouldShowOnboarding={!onboardingStatus.onboardingCompleted} />
+      <div className="space-y-8">
+        {/* Welcome Section */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl lg:text-3xl font-bold text-soil-900">
@@ -212,5 +266,6 @@ export default async function DashboardPage() {
         </div>
       </div>
     </div>
+    </>
   );
 }
