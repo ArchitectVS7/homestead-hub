@@ -1,6 +1,7 @@
-# HomesteadHub — Project Assessment
+# HomesteadHub — Project Assessment (Concise)
 
-> Generated: February 2026 | Branch: `claude/assess-project-status-fRuhe`
+> Generated: February 2026 | Assessed by: Claude (Sonnet 4.5)
+> Full detailed report: [`docs/ASSESSMENT_DETAILED.md`](docs/ASSESSMENT_DETAILED.md)
 
 ---
 
@@ -91,3 +92,7 @@ willing to advocate for tools they trust.
 7. Document backup/restore procedure for the SQLite database file
 8. Add `--seed` flag to Docker entrypoint for first-run setup
 9. Evaluate Progressive Web App (PWA) manifest for mobile home-screen install
+
+---
+
+See [`docs/ASSESSMENT_DETAILED.md`](docs/ASSESSMENT_DETAILED.md) for the full analysis including competitive landscape, schema audit, documentation audit with specific inaccuracies found, and extended priority list.
