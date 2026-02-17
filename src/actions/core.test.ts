@@ -43,7 +43,7 @@ describe('Core Modules', () => {
             dbMock.task.findUnique.mockResolvedValue({ id: '1', title: 'Water', priority: 'medium', category: 'garden', recurrenceRule: null, nextDue: null, lastCompleted: null, estimatedMinutes: null, assignedTo: null, notes: null, isActive: true, createdAt: new Date(), updatedAt: new Date(), description: null } as any);
 
             // Mock update
-            dbMock.taskCompletion.create.mockResolvedValue({ id: 'c1', taskId: '1', completedAt: new Date(), completedBy: null, duration: null, notes: null, createdAt: new Date() });
+            dbMock.taskCompletion.create.mockResolvedValue({ id: 'c1', taskId: '1', completedAt: new Date(), completedBy: null, duration: null, notes: null, isStarterData: false, createdAt: new Date() });
             // Mock update task
             dbMock.task.update.mockResolvedValue({ id: '1' } as any);
 

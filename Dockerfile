@@ -27,7 +27,7 @@ RUN npm run build
 # ── Stage 3: Production runner ────────────────────────────────────────────────
 FROM node:20-alpine AS runner
 
-RUN apk add --no-cache libc6-compat
+RUN apk add --no-cache libc6-compat wget
 
 WORKDIR /app
 
@@ -51,5 +51,5 @@ EXPOSE 3000
 ENV PORT=3000
 ENV HOSTNAME=0.0.0.0
 
-# Push schema (idempotent) then start the server
-CMD ["sh", "-c", "DATABASE_URL=file:/app/data/homestead.db npx prisma db push --accept-data-loss && npm start"]
+# Apply pending migrations then start the server
+CMD ["sh", "-c", "npx prisma migrate deploy && npm start"]

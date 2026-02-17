@@ -3,14 +3,13 @@
 import { useEffect, useState } from "react";
 
 export function useNetworkStatus() {
-    const [isOnline, setIsOnline] = useState(true);
+    // Lazy initializer reads navigator.onLine once at mount time, avoiding
+    // a synchronous setState call inside an effect body.
+    const [isOnline, setIsOnline] = useState(() =>
+        typeof window !== "undefined" ? navigator.onLine : true
+    );
 
     useEffect(() => {
-        // Initial status
-        if (typeof window !== "undefined") {
-            setIsOnline(navigator.onLine);
-        }
-
         const handleOnline = () => setIsOnline(true);
         const handleOffline = () => setIsOnline(false);
 

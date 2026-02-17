@@ -107,7 +107,7 @@ export default function SetupPage() {
                         Welcome to HomesteadHub
                     </h1>
                     <p className="text-earth-600 mt-2">
-                        Let's secure your homestead with a PIN
+                        Let&apos;s secure your homestead with a PIN
                     </p>
                 </div>
 
