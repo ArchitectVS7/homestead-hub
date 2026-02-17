@@ -1,0 +1,23 @@
+services:
+  homestead-hub:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: homestead-hub
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    volumes:
+      # SQLite database persisted on the host — back this file up
+      - ./data:/app/data
+    environment:
+      - NODE_ENV=production
+      - DATABASE_URL=file:/app/data/homestead.db
+      - NEXT_PUBLIC_APP_NAME=${NEXT_PUBLIC_APP_NAME:-HomesteadHub}
+      - NEXT_PUBLIC_APP_URL=${NEXT_PUBLIC_APP_URL:-http://localhost:3000}
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3000/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s

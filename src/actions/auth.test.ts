@@ -37,8 +37,8 @@ describe('Auth Actions', () => {
         it('should create a PIN if none exists', async () => {
             // Setup: No existing settings - getSettings will create one without PIN
             dbMock.settings.findFirst.mockResolvedValue(null);
-            dbMock.settings.create.mockResolvedValue({ id: '1', hashedPIN: null, unitPreference: 'metric', hardinessZone: null, zipCode: null, latitude: null, longitude: null, weatherAPIKey: null, expirationWarningDays: 7, sessionTTLDays: 7, createdAt: new Date(), updatedAt: new Date() });
-            dbMock.settings.update.mockResolvedValue({ id: '1', hashedPIN: 'hashed_1234', unitPreference: 'metric', hardinessZone: null, zipCode: null, latitude: null, longitude: null, weatherAPIKey: null, expirationWarningDays: 7, sessionTTLDays: 7, createdAt: new Date(), updatedAt: new Date() });
+            dbMock.settings.create.mockResolvedValue({ id: '1', hashedPIN: null, unitPreference: 'metric', hardinessZone: null, zipCode: null, latitude: null, longitude: null, weatherAPIKey: null, expirationWarningDays: 7, sessionTTLDays: 7, onboardingCompleted: false, hasStarterData: false, createdAt: new Date(), updatedAt: new Date() });
+            dbMock.settings.update.mockResolvedValue({ id: '1', hashedPIN: 'hashed_1234', unitPreference: 'metric', hardinessZone: null, zipCode: null, latitude: null, longitude: null, weatherAPIKey: null, expirationWarningDays: 7, sessionTTLDays: 7, onboardingCompleted: false, hasStarterData: false, createdAt: new Date(), updatedAt: new Date() });
 
             const result = await setupPIN('1234');
 

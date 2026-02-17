@@ -125,7 +125,7 @@ export default async function DashboardPage() {
             Homestead Overview
           </h1>
           <p className="text-soil-600 mt-1">
-            Good morning. Here's what's happening on the farm today.
+            Good morning. Here&apos;s what&apos;s happening on the farm today.
           </p>
         </div>
         <div className="text-sm text-soil-500 bg-white px-4 py-2 rounded-lg border border-soil-200">

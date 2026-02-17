@@ -31,14 +31,7 @@ export function SyncIndicator() {
         return unsubscribe;
     }, [updateCount]);
 
-    // Auto-sync when coming back online
-    React.useEffect(() => {
-        if (isOnline && pendingCount > 0) {
-            handleSync();
-        }
-    }, [isOnline]); // removed pendingCount from dependency to avoid loop, handled by initial load and network change
-
-    const handleSync = async () => {
+    const handleSync = React.useCallback(async () => {
         if (!isOnline) return;
         setIsSyncing(true);
         try {
@@ -47,7 +40,17 @@ export function SyncIndicator() {
         } finally {
             setIsSyncing(false);
         }
-    };
+    }, [isOnline, updateCount]);
+
+    // Auto-sync when coming back online. pendingCount is intentionally
+    // excluded from deps to avoid a sync loop; this effect should only
+    // trigger on network status changes.
+    React.useEffect(() => {
+        if (isOnline && pendingCount > 0) {
+            handleSync();
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [isOnline, handleSync]);
 
     if (isOnline && pendingCount === 0) {
         return (
