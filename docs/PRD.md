@@ -11,27 +11,46 @@
 
 HomesteadHub is a self-hosted, offline-capable web application that gives a single homesteader complete control over food storage, garden planning, equipment maintenance, livestock management, weather tracking, task scheduling, resource monitoring, and emergency preparedness — with zero cloud dependencies, zero subscriptions, and zero third-party data access.
 
+The system runs on commodity hardware (Raspberry Pi, old laptop, home server), requires no recurring fees, and is accessible to anyone technically capable of running `docker compose up` or `npm run dev` on a local machine.
+
 ---
 
 ## Overview
 
-HomesteadHub is designed for the engineer-farmer-survivalist: a single homesteader (or household) who is technically capable of running `docker compose up` or `npm run dev` on a local machine. The application runs entirely on the user's own hardware — from a Raspberry Pi to a home server — and operates fully offline using IndexedDB for client-side caching with sync on reconnect.
+HomesteadHub is a **single-user, self-hosted** farm and homestead management system built for the engineer-farmer-survivalist. It is reverse-engineered from the codebase as of 2026-02-05.
 
-The product is built on Next.js 14 (App Router) with TypeScript, PostgreSQL via Prisma, and a custom earth-toned design system. It exposes nine functional modules through a collapsible sidebar dashboard:
+The application is built on Next.js 14 (App Router) with TypeScript, backed by PostgreSQL via Prisma, and styled with Tailwind CSS using a custom earth/soil/forest/harvest/barn color palette. Offline-first functionality is provided through IndexedDB (`idb`), with queued writes that sync when a connection is available.
+
+The product is organized into nine functional modules accessible from a collapsible sidebar:
 
 | Module | Route |
 |---|---|
-| Dashboard (Overview) | `/dashboard` |
+| Dashboard | `/dashboard` |
 | Inventory (Food Storage) | `/dashboard/storage` |
-| Garden Planning | `/dashboard/garden` |
-| Equipment Maintenance | `/dashboard/equipment` |
-| Livestock Management | `/dashboard/livestock` |
-| Task Scheduling | `/dashboard/tasks` |
-| Resource Tracking | `/dashboard/resources` |
-| Weather Integration | `/dashboard/weather` |
-| Emergency Preparedness | `/dashboard/preparedness` |
+| Garden (Garden Planning) | `/dashboard/garden` |
+| Equipment (Equipment Maintenance) | `/dashboard/equipment` |
+| Livestock (Livestock Management) | `/dashboard/livestock` |
+| Tasks (Task Scheduling) | `/dashboard/tasks` |
+| Resources (Resource Tracking) | `/dashboard/resources` |
+| Weather (Weather Integration) | `/dashboard/weather` |
+| Emergency Prep (Emergency Preparedness) | `/dashboard/preparedness` |
 
-Access is controlled by a simple PIN/password gate — sufficient for casual LAN protection without the overhead of a full authentication system.
+System-level pages for Settings and Notifications are also accessible from the sidebar.
+
+The data model comprises 16 Prisma models across 8 modules. All IDs use `cuid()`. All models carry `createdAt`; most carry `updatedAt`. The model relationships are:
+
+```
+StorageItem
+Crop ──< Planting
+Equipment ──< MaintenanceRecord
+Animal ──< HealthRecord
+Animal ──< ProductionLog
+Animal ──< Animal (self-ref: parentId → AnimalLineage)
+WeatherSnapshot
+Task ──< TaskCompletion
+ResourceLog
+Checklist ──< ChecklistItem
+```
 
 ### Design Principles
 
@@ -88,24 +107,7 @@ Access is controlled by a simple PIN/password gate — sufficient for casual LAN
 
 **Layout:** Collapsible sidebar (64px collapsed / 256px expanded), mobile overlay with hamburger. `SidebarLayout` wraps all `/dashboard/*` routes.
 
-### Data Model
-
-16 Prisma models across 8 modules. All IDs are `cuid()`. All models have `createdAt`; most have `updatedAt`.
-
-**Model relationships:**
-
-```
-StorageItem
-Crop ──< Planting
-Equipment ──< MaintenanceRecord
-Animal ──< HealthRecord
-Animal ──< ProductionLog
-Animal ──< Animal (self-ref: parentId → AnimalLineage)
-WeatherSnapshot
-Task ──< TaskCompletion
-ResourceLog
-Checklist ──< ChecklistItem
-```
+### Data Model Details
 
 #### StorageItem
 
@@ -162,25 +164,257 @@ Checklist ──< ChecklistItem
 |---|---|---|
 | id | String (cuid) | PK |
 | name | String | Required |
-| category | String | Indexed. Values: tractor, mower, tiller, chainsaw, generator, pump, vehicle, tool, other |
-| make | String? | |
-| model | String? | |
-| serialNumber | String? | |
-| purchaseDate | DateTime? | |
-| purchasePrice | Float? | |
-| location | String? | |
-| status | String | Indexed. Default "operational". Values: operational
+| category | String | Indexed. Values: tractor, mower, tiller, chainsaw, generator, pump,
 
-# HomesteadHub — Product Requirements Document
+## Requirements
 
-> **Status:** Reverse-engineered from codebase
-> **Version:** 1.0
-> **Date:** 2026-02-05
-> **Scope:** Single-user, self-hosted farm & homestead management system for the engineer-farmer-survivalist.
+### Functional Requirements
+
+#### F-03: Food Storage — Inventory Management (continued)
+
+**Module:** Storage | **Priority:** P1 | **Route:** `/dashboard/storage`
+
+- Total calorie count displayed, computed as sum across all items (`quantity * calories`).
+
+**Data Flow:**
+```
+Client (react-query) → Server Action → Prisma → PostgreSQL
+                     ← invalidateQueries on mutation
+```
+
+**Acceptance Criteria:**
+- [ ] Can add, edit, and delete storage items.
+- [ ] Expiration dates are color-coded in the list.
+- [ ] Alert banner shows real count from DB.
+- [ ] Search filters the list by name.
+- [ ] Category and location filters work.
+- [ ] Total calorie count is displayed.
 
 ---
 
-## Requirements
+#### F-04: Garden — Crop Library + Planting Tracker
+
+**Module:** Garden | **Priority:** P1 | **Route:** `/dashboard/garden`
+
+1. **Two sub-views** toggled by buttons (already in UI shell):
+   - **Calendar view**: Plantings displayed on a month grid by `plantDate` and `expectedHarvest`.
+   - **Grid/card view**: One card per active planting showing crop name, variety, location, status.
+2. **Crop library** (accessible from a tab or section): list of `Crop` records with companion/incompatible plant info.
+3. **New Planting** — dialog with crop selector (dropdown of `Crop` records), location, plantDate, quantity.
+4. **Log Harvest** — mark a planting as harvested with actualHarvest date, yield, yieldUnit, success flag.
+5. **Crop CRUD** — Add/edit/delete crop definitions (name, variety, days to maturity, spacing, companion/incompatible plants).
+6. **Companion planting warnings**: When creating a planting, warn if incompatible plants are already in the same location.
+
+**Acceptance Criteria:**
+- [ ] Can switch between calendar and grid views.
+- [ ] New Planting form uses crop library dropdown.
+- [ ] Harvest logging updates actualHarvest, yield, success.
+- [ ] Crop library supports full CRUD.
+- [ ] Companion planting conflict warning appears when relevant.
+
+---
+
+#### F-05: Equipment — Maintenance Scheduling
+
+**Module:** Equipment | **Priority:** P1 | **Route:** `/dashboard/equipment`
+
+1. **Equipment list** with columns: Name, Category, Status (badge), Hours, Last Service, Next Service Due.
+2. **Status badges**: green (operational), amber (needs-service), red (out-of-service).
+3. **Service-due logic**: Equipment needs service when `currentHours - lastServiceHours >= serviceIntervalHours` OR `daysSince(lastServiceDate) >= serviceIntervalDays`.
+4. **Add Equipment** — Zod-validated form matching `Equipment` schema.
+5. **Log Maintenance** — creates a `MaintenanceRecord` and updates `lastServiceDate`/`lastServiceHours` on the parent `Equipment`.
+6. **Maintenance history** — expandable section or detail page showing all `MaintenanceRecord` entries for a piece of equipment, ordered by date desc.
+7. **Service alert banner** — count of equipment needing service, similar to storage expiration banner.
+
+**Acceptance Criteria:**
+- [ ] Equipment list shows real data with correct status badges.
+- [ ] Logging maintenance updates both the record and the parent equipment.
+- [ ] Service-due calculation works by both hours and days.
+- [ ] Alert banner reflects real service-due count.
+
+---
+
+#### F-06: Livestock — Herd/Flock Management
+
+**Module:** Livestock | **Priority:** P1 | **Route:** `/dashboard/livestock`
+
+1. **Animal list** filterable by type (`LivestockType` enum) and status (active, sold, deceased, processed).
+2. **Add Animal** — form matching `Animal` schema. Optional parent selector for lineage.
+3. **Animal detail page** (`/dashboard/livestock/[id]`) showing:
+   - Basic info (name/tag, type, breed, sex, birth date, status).
+   - **Health records** tab — list of `HealthRecord` entries + "Add Health Record" form.
+   - **Production logs** tab — list of `ProductionLog` entries + "Log Production" form.
+   - **Lineage** — parent link and offspring list.
+4. **Production summary**: Per-type aggregation (e.g., total eggs this week, total milk this month). Suitable for Recharts line/bar chart.
+5. **Health reminders**: HealthRecords with `nextDue` in the past or within 7 days should surface as alerts.
+
+**Acceptance Criteria:**
+- [ ] Animal list filters by type and status.
+- [ ] Animal detail page shows health records, production logs, and lineage.
+- [ ] Can add health records and production logs from the detail page.
+- [ ] Production summary chart renders with real data.
+- [ ] Health reminders surface for upcoming/overdue records.
+
+---
+
+#### F-07: Task Scheduling — Recurring Tasks + Completions
+
+**Module:** Tasks | **Priority:** P1 | **Route:** `/dashboard/tasks`
+
+1. **Task list** with sections: Overdue, Due Today, Upcoming This Week, All Active.
+2. **Stat cards** (already in UI shell): Due Today, Overdue, Completed This Week, Upcoming This Week — computed from DB.
+3. **Add Task** — form with title, description, category, priority, recurrence rule (UI for common patterns: daily, weekly, monthly, quarterly, annual + custom RRULE), estimatedMinutes.
+4. **Complete Task** — creates a `TaskCompletion` record (with optional duration and notes), then recalculates `nextDue` from the RRULE. Updates `lastCompleted`.
+5. **Task detail/edit** — inline or dialog edit of task properties.
+6. **Deactivate Task** — sets `isActive` to false (soft delete). Does not delete completions.
+7. **Completion history** — expandable list of `TaskCompletion` entries for a task.
+
+**Acceptance Criteria:**
+- [ ] Stat cards reflect real data.
+- [ ] Completing a task creates a completion record and advances `nextDue`.
+- [ ] Recurrence options cover daily, weekly, monthly, quarterly, annual.
+- [ ] Overdue tasks are visually distinct (red/amber styling).
+- [ ] Deactivated tasks disappear from the active list.
+
+---
+
+#### F-08: Resource Tracking — Consumables Ledger
+
+**Module:** Resources | **Priority:** P2 | **Route:** `/dashboard/resources`
+
+1. **Resource summary cards** (already in UI shell): One per resource type showing current computed balance (sum of purchases minus sum of usage), unit, and trend.
+2. **Log Usage/Purchase** — form with type (from `ResourceType` enum + free text), action (usage/purchase/adjustment), quantity, unit, cost, vendor, date.
+3. **Resource history** — filterable table of `ResourceLog` entries by type and date range.
+4. **Consumption trend chart** (Recharts): line chart of net balance over time per resource type. Weekly or monthly granularity toggle.
+5. **Low-stock alerts**: Configurable thresholds per resource type. Alert when computed balance drops below threshold.
+
+**Acceptance Criteria:**
+- [ ] Summary cards show computed balances from actual logs.
+- [ ] Can log usage, purchases, and adjustments.
+- [ ] History table filters by type and date range.
+- [ ] Trend chart renders with real data.
+- [ ] Low-stock alerts trigger at configured thresholds.
+
+---
+
+#### F-09: Weather — Manual + API Snapshots
+
+**Module:** Weather | **Priority:** P2 | **Route:** `/dashboard/weather`
+
+1. **Current conditions card** (already in UI shell): temperature, feels-like, humidity, wind speed/direction. Data source: latest `WeatherSnapshot`.
+2. **Manual weather log** — form to create a `WeatherSnapshot` with all fields.
+3. **Optional API integration** — if an OpenWeatherMap API key is configured in Settings, auto-fetch current conditions and create a snapshot on a configurable interval.
+4. **Frost alert banner**: Displayed when latest or upcoming snapshot has `temperature <= 32`.
+5. **Historical data table** — paginated list of snapshots, filterable by date range.
+6. **Temperature trend chart** (Recharts): line chart of temperature over time with precipitation overlay.
+
+**Acceptance Criteria:**
+- [ ] Current conditions card shows latest snapshot data.
+- [ ] Manual weather logging creates a valid snapshot.
+- [ ] Frost alert appears when temperature <= 32.
+- [ ] Historical table is paginated and filterable.
+- [ ] Trend chart renders with real data.
+
+---
+
+#### F-10: Emergency Preparedness — Checklists + Readiness Score
+
+**Module:** Preparedness | **Priority:** P2 | **Route:** `/dashboard/preparedness`
+
+1. **Readiness score** (already in UI shell): Percentage calculated as `completedItems / totalItems` across all non-template checklists.
+2. **Checklist list**: Shows all checklists with name, category, completion progress bar.
+3. **New Checklist** — create blank or clone from a template (`isTemplate: true`).
+4. **Checklist detail**: Ordered list of `ChecklistItem` entries. Toggle completion (updates `isCompleted` + `completedAt`). Drag-to-reorder (updates `sortOrder`).
+5. **Add/edit/delete checklist items** inline.
+6. **Template management**: Mark checklists as templates. Templates cannot be directly checked off — they must be cloned first.
+7. **Category filter**: Filter checklists by category (evacuation, shelter-in-place, power-outage, etc.).
+
+**Acceptance Criteria:**
+- [ ] Readiness score is computed from real completion data.
+- [ ] Cloning a template creates a new checklist with all items (all unchecked).
+- [ ] Items can be toggled, reordered, added, edited, and deleted.
+- [ ] Templates cannot be directly completed.
+- [ ] Category filter works.
+
+---
+
+#### F-11: Settings — Instance Configuration
+
+**Module:** System | **Priority:** P1 | **Route:** `/dashboard/settings`
+
+1. **Location settings**: USDA hardiness zone, ZIP code, coordinates (lat/long for weather API).
+2. **Unit preference**: Imperial or Metric. Stored in DB or config. Affects display of temperature, weight, volume across all modules.
+3. **Notification preferences**: Toggle switches for expiration warnings, equipment service reminders, frost alerts, task reminders. Configurable thresholds (e.g., expiration warning = 30 days).
+4. **Weather API key**: Optional OpenWeatherMap API key input.
+5. **PIN management**: Change PIN (requires current PIN).
+6. **Data management**: Export all data as JSON. Import from JSON backup.
+7. All settings persisted via server action. Single settings record or key-value store.
+
+**Acceptance Criteria:**
+- [ ] All settings fields persist and reload on page refresh.
+- [ ] Unit preference changes are reflected across the app.
+- [ ] PIN can be changed.
+- [ ] Export produces a valid JSON file with all data.
+- [ ] Import restores data from a JSON backup.
+
+---
+
+#### F-12: Notifications — In-App Alert Feed
+
+**Module:** System | **Priority:** P2 | **Route:** `/dashboard/notifications`
+
+1. **Notification list**: Ordered by timestamp desc. Types: warning, alert, info, success.
+2. **Auto-generated notifications** from:
+   - Storage: items expiring within configured threshold.
+   - Equipment: service overdue.
+   - Tasks: overdue tasks.
+   - Weather: frost alerts.
+   - Health records: upcoming vaccinations/vet visits (`nextDue`).
+3. **Read/unread state**: Unread notifications have a visual indicator (dot). "Mark all as read" button.
+4. **Delete** individual notifications.
+5. **Notification badge** on the sidebar Bell icon showing unread count.
+
+**Acceptance Criteria:**
+- [ ] Notifications are auto-generated from cross-module triggers.
+- [ ] Read/unread toggle works.
+- [ ] "Mark all as read" clears all unread indicators.
+- [ ] Individual delete works.
+- [ ] Sidebar badge shows unread count.
+
+---
+
+#### F-13: Offline-First with IndexedDB
+
+**Module:** Cross-cutting | **Priority:** P2
+
+1. **Read cache**: On page load, serve data from IndexedDB (`idb` library) while fetching fresh data from the server. Show stale data immediately; replace when server responds.
+2. **Write queue**: When offline, queue mutations (create/update/delete) in IndexedDB. Sync to server when connectivity resumes.
+3. **Conflict resolution**: Last-write-wins based on `updatedAt` timestamp. No merge.
+4. **Sync indicator**: UI element (e.g., in sidebar or top bar) showing online/offline status and pending sync count.
+
+**Acceptance Criteria:**
+- [ ] Pages render cached data when server is unreachable.
+- [ ] Mutations made offline are synced when connection restores.
+- [ ] Sync indicator shows pending count and online/offline status.
+
+---
+
+### Shared Type Enums
+
+Defined in `src/types/index.ts`:
+
+| Type | Values |
+|---|---|
+| `RecurrenceInterval` | daily, weekly, monthly, quarterly, annual |
+| `TaskPriority` | low, medium, high, urgent |
+| `ResourceType` | water, fuel, seeds, feed, other |
+| `LivestockType` | chicken, duck, goose, turkey, cow, pig, goat, sheep, horse, rabbit, bee, other |
+| `EquipmentCategory` | tractor, mower, tiller, chainsaw, generator, pump, vehicle, tool, other |
+| `StorageCategory` | grains, legumes, canned, freeze-dried, dehydrated, frozen, fresh, water, other |
+
+Additional interfaces: `DateRange` and `Coordinates`.
+
+---
 
 ### F-01: PIN/Password Gate
 
@@ -216,9 +450,9 @@ Checklist ──< ChecklistItem
 2. **Module grid** (8 cards): One per module with icon, name, description, and a live stat count (e.g. "127 items tracked"). Links to module page.
 3. **Alerts panel** — auto-generated from:
    - `StorageItem` records with `expirationDate` within 30 days.
-   - `Equipment` where `currentHours - lastServiceHours > serviceIntervalHours`.
-   - `WeatherSnapshot` records indicating frost (`temperature < 32`).
-   - `Task` records where `nextDue` is past.
+   - Equipment where `currentHours - lastServiceHours > serviceIntervalHours`.
+   - `WeatherSnapshot` records indicating frost (temperature < 32°F).
+   - Tasks where `nextDue` is past.
 4. **Recent activity feed**: Last 5–10 cross-module events (task completions, storage additions, production logs, maintenance records), ordered by `createdAt` desc.
 
 **Acceptance Criteria:**
@@ -245,20 +479,103 @@ Checklist ──< ChecklistItem
 7. **Delete Item** — confirmation dialog.
 8. **Expiration alert banner** at the top: count of items expiring within 30 days. Clicking navigates to a filtered view showing only those items.
 9. **Color-coded expiration**: red (<7 days), amber (7–30 days), green (>30 days or no date).
-10. **Calorie summary**: Total estimated calories across all storage items.
+10. **Calorie summary**: Total estimated calories across all stored items.
 
 ---
 
 ## UI/UX Design
 
-### Design Principles
+### Module Views Summary
 
-| Principle | Implication |
-|---|---|
-| **Self-hosted** | Runs on any hardware (Raspberry Pi, old laptop, home server). No external SaaS. |
-| **Offline-first** | Full functionality without internet. IndexedDB (`idb`) for client cache; sync when connected. |
-| **No subscriptions** | One-time setup. No recurring fees, no vendor lock-in. |
-| **Single-user** | Simple PIN/password gate — not a full auth system. No multi-tenancy. |
+| Module | Route | Primary Views |
+|---|---|---|
+| Dashboard | `/dashboard` | Summary cards, cross-module alert banners |
+| Storage | `/dashboard/storage` | Inventory list with search/filter, expiration color-coding, calorie total |
+| Garden | `/dashboard/garden` | Calendar view + grid/card view toggle, crop library tab |
+| Equipment | `/dashboard/equipment` | Equipment list with status badges, maintenance history |
+| Livestock | `/dashboard/livestock` | Animal list with type/status filters, detail page with tabbed records |
+| Tasks | `/dashboard/tasks` | Sectioned list (Overdue / Due Today / Upcoming / All Active), stat cards |
+| Resources | `/dashboard/resources` | Summary cards, history table, trend chart |
+| Weather | `/dashboard/weather` | Current conditions card, frost alert banner, historical table, trend chart |
+| Preparedness | `/dashboard/preparedness` | Readiness score, checklist list with progress bars |
+| Settings | `/dashboard/settings` | Form-based configuration panels |
+| Notifications | `/dashboard/notifications` | Ordered feed with read/unread state, sidebar badge |
+
+### Visual Design Conventions
+
+- **Status badges**: green (operational/good), amber (warning/needs-service), red (critical/out-of-service/overdue).
+- **Expiration color-coding**: Applied to storage item expiration dates in list view.
+- **Alert banners**: Persistent banners at module level showing real counts from DB (expiring items, service-due equipment, overdue tasks, frost warnings).
+- **Stat cards**: Pre-built UI shell cards populated with live DB data (Tasks: Due Today, Overdue, Completed This Week, Upcoming This Week).
+- **Overdue tasks**: Visually distinct using red/amber styling.
+- **Sync indicator**: Sidebar or top bar element showing online/offline status and pending sync count.
+- **Notification badge**: Bell icon in sidebar displaying unread notification count.
+
+### Garden Sub-Views
+
+- **Calendar view**: Month grid layout; plantings positioned by `plantDate` and `expectedHarvest`.
+- **Grid/card view**: One card per active planting showing crop name, variety, location, status.
+- View toggled by buttons already present in the UI shell.
+
+### Livestock Detail Page (`/dashboard/livestock/[id]`)
+
+- Basic info section: name/tag, type, breed, sex, birth date, status.
+- Tabbed interface:
+  - **Health records** tab: list of `HealthRecord` entries + inline "Add Health Record" form.
+  - **Production logs** tab: list of `ProductionLog` entries + inline "Log Production" form.
+- **Lineage** section: parent link and offspring list.
+
+### Emergency Preparedness Checklist Detail
+
+- Ordered list of `ChecklistItem` entries with toggle completion controls.
+- Drag-to-reorder updates `sortOrder`.
+- Inline add/edit/delete of items.
+- Templates visually distinguished; direct check-off disabled on templates.
+
+  category: z.string(),
+  quantity: z.number().positive(),
+  unit: z.string().min(1),
+  location: z.string().optional(),
+  purchaseDate: z.date().optional(),
+  expirationDate: z.date().optional(),
+  calories: z.number().int().optional(),
+  notes: z.string().optional(),
+});
+
+export async function createStorageItem(input: z.infer<typeof CreateStorageItemSchema>) {
+  const data = CreateStorageItemSchema.parse(input);
+  return db.storageItem.create({ data });
+}
+```
+
+**Client-side pattern**: `@tanstack/react-query` with `useMutation` calling server actions, `invalidateQueries` on success.
+
+### Offline-First Architecture
+
+- **Read cache**: IndexedDB (`idb` library) serves stale data immediately on page load while fresh data is fetched from the server.
+- **Write queue**: Offline mutations queued in IndexedDB; synced to server on connectivity restore.
+- **Conflict resolution**: Last-write-wins based on `updatedAt` timestamp. No merge strategy.
+
+### Existing Utilities
+
+| File | Exports | Notes |
+|---|---|---|
+| `src/lib/db.ts` | `db` (PrismaClient) | Singleton with dev logging |
+| `src/lib/utils.ts` | `cn()` | clsx + tailwind-merge |
+| | `formatDate()` | Intl.DateTimeFormat, "Jan 1, 2026" |
+| | `daysUntil()` | Days from now to target date |
+| | `pluralize()` | Simple singular/plural |
+
+### Seed Data Patterns
+
+The seed script (`prisma/seed.ts`) establishes the following patterns:
+
+- **Crops**: 3 records (Tomato Roma, Lettuce Butterhead, Zucchini Black Beauty) with full companion/incompatible arrays.
+- **Emergency checklist**: 1 template ("72-Hour Emergency Kit") with 20 items using `sortOrder`.
+- **Tasks**: 4 recurring tasks using iCal RRULE strings (`FREQ=MONTHLY`, `FREQ=YEARLY;BYMONTH=3`, `FREQ=WEEKLY`).
+- **Storage items**: 3 items (White Rice, Pinto Beans, Canned Tomatoes) with categories, locations, expiration dates, and calorie counts.
+
+---
 
 ### Navigation Structure
 
@@ -308,6 +625,15 @@ Checklist ──< ChecklistItem
 
 ## Architecture
 
+### Design Principles
+
+| Principle | Implication |
+|---|---|
+| **Self-hosted** | Runs on any hardware (Raspberry Pi, old laptop, home server). No external SaaS. |
+| **Offline-first** | Full functionality without internet. IndexedDB (`idb`) for client cache; sync when connected. |
+| **No subscriptions** | One-time setup. No recurring fees, no vendor lock-in. |
+| **Single-user** | Simple PIN/password gate — not a full auth system. No multi-tenancy. |
+
 ### Architectural Decisions
 
 | Decision | Rationale |
@@ -320,7 +646,7 @@ Checklist ──< ChecklistItem
 
 16 Prisma models across 8 modules. All IDs are `cuid()`. All models have `createdAt`; most have `updatedAt`.
 
-**Model relationships:**
+**Model relationship map:**
 
 ```
 StorageItem
@@ -578,399 +904,29 @@ Checklist ──< ChecklistItem
 
 ## API Design
 
-> *No content yet — see template instructions in docs/other/prd-pre-migration.md*
+### Server Actions
+
+All data access is mediated through Next.js Server Actions (see Architecture section for pattern). Input validation is performed with Zod schemas before any Prisma call. Client-side mutations use `@tanstack/react-query` `useMutation` and invalidate relevant queries on success.
+
+### External API Integration
+
+- **OpenWeatherMap**: Optional. API key configured in Settings. When present, auto-fetches current conditions and creates a `WeatherSnapshot` on a configurable interval.
 
 ---
 
 ## Security
 
-- Session enforced via HTTP-only cookie (`homestead-session`) with configurable TTL (default: 7 days).
-- PIN/password stored as a bcrypt hash (or similar) in the settings store.
-- All `/dashboard/*` routes protected by Next.js middleware that validates the session cookie.
-- No OAuth, no JWT, no multi-tenancy — single PIN for the entire instance.
-- No external data transmission; zero cloud dependencies.
+### PIN Gate (F-01)
 
----
+- Single 4–6 digit PIN stored as a bcrypt hash.
+- PIN verified server-side via a Server Action; session token issued on success.
+- All `/dashboard/*` routes protected; unauthenticated requests redirected to `/`.
+- No multi-user authentication — single-household access model.
+- PIN change requires the current PIN.
 
-## Success Metrics
+### Input Validation
 
-> *No content yet — see template instructions in docs/other/prd-pre-migration.md*
-
----
-
-## Testing Strategy
-
-> *No content yet — see template instructions in docs/other/prd-pre-migration.md*
-
----
-
-## Timeline & Phases
-
-> *No content yet — see template instructions in docs/other/prd-pre-migration.md*
-
----
-
-## Open Questions
-
-> *No content yet — see template instructions in docs/other/prd-pre-migration.md*
-
----
-
-## Revision History
-
-| Date | Version | Notes |
-|---|---|---|
-| 2026-02-05 | 1.0 | Reverse-engineered from codebase |
-
----
-project: homestead-hub
-status: draft
-version: 0.2
-date: 2025-01-01
----
-
-## Requirements
-
-### F-03: Food Storage — Inventory Management
-
-**Module:** Storage
-**Priority:** P1
-**Route:** `/dashboard/storage`
-
-- Total calorie count displayed, computed as sum of `quantity * calories` across all items.
-
-**Data Flow:**
-```
-Client (react-query) → Server Action → Prisma → PostgreSQL
-                     ← invalidateQueries on mutation
-```
-
-**Acceptance Criteria:**
-- [ ] Can add, edit, and delete storage items.
-- [ ] Expiration dates are color-coded in the list.
-- [ ] Alert banner shows real count from DB.
-- [ ] Search filters the list by name.
-- [ ] Category and location filters work.
-- [ ] Total calorie count is displayed.
-
----
-
-### F-04: Garden — Crop Library + Planting Tracker
-
-**Module:** Garden
-**Priority:** P1
-**Route:** `/dashboard/garden`
-
-1. **Two sub-views** toggled by buttons (already in UI shell):
-   - **Calendar view**: Plantings displayed on a month grid by `plantDate` and `expectedHarvest`.
-   - **Grid/card view**: One card per active planting showing crop name, variety, location, status.
-2. **Crop library** (accessible from a tab or section): list of `Crop` records with companion/incompatible plant info.
-3. **New Planting** — dialog with crop selector (dropdown of `Crop` records), location, plantDate, quantity.
-4. **Log Harvest** — mark a planting as harvested with actualHarvest date, yield, yieldUnit, success flag.
-5. **Crop CRUD** — Add/edit/delete crop definitions (name, variety, days to maturity, spacing, companion/incompatible plants).
-6. **Companion planting warnings**: When creating a planting, warn if incompatible plants are already in the same location.
-
-**Acceptance Criteria:**
-- [ ] Can switch between calendar and grid views.
-- [ ] New Planting form uses crop library dropdown.
-- [ ] Harvest logging updates actualHarvest, yield, success.
-- [ ] Crop library supports full CRUD.
-- [ ] Companion planting conflict warning appears when relevant.
-
----
-
-### F-05: Equipment — Maintenance Scheduling
-
-**Module:** Equipment
-**Priority:** P1
-**Route:** `/dashboard/equipment`
-
-1. **Equipment list** with columns: Name, Category, Status (badge), Hours, Last Service, Next Service Due.
-2. **Status badges**: green (operational), amber (needs-service), red (out-of-service).
-3. **Service-due logic**: Equipment needs service when `currentHours - lastServiceHours >= serviceIntervalHours` OR `daysSince(lastServiceDate) >= serviceIntervalDays`.
-4. **Add Equipment** — Zod-validated form matching `Equipment` schema.
-5. **Log Maintenance** — creates a `MaintenanceRecord` and updates `lastServiceDate`/`lastServiceHours` on the parent `Equipment`.
-6. **Maintenance history** — expandable section or detail page showing all `MaintenanceRecord` entries for a piece of equipment, ordered by date desc.
-7. **Service alert banner** — count of equipment needing service, similar to storage expiration banner.
-
-**Acceptance Criteria:**
-- [ ] Equipment list shows real data with correct status badges.
-- [ ] Logging maintenance updates both the record and the parent equipment.
-- [ ] Service-due calculation works by both hours and days.
-- [ ] Alert banner reflects real service-due count.
-
----
-
-### F-06: Livestock — Herd/Flock Management
-
-**Module:** Livestock
-**Priority:** P1
-**Route:** `/dashboard/livestock`
-
-1. **Animal list** filterable by type (`LivestockType` enum) and status (active, sold, deceased, processed).
-2. **Add Animal** — form matching `Animal` schema. Optional parent selector for lineage.
-3. **Animal detail page** (`/dashboard/livestock/[id]`) showing:
-   - Basic info (name/tag, type, breed, sex, birth date, status).
-   - **Health records** tab — list of `HealthRecord` entries + "Add Health Record" form.
-   - **Production logs** tab — list of `ProductionLog` entries + "Log Production" form.
-   - **Lineage** — parent link and offspring list.
-4. **Production summary**: Per-type aggregation (e.g., total eggs this week, total milk this month). Suitable for Recharts line/bar chart.
-5. **Health reminders**: HealthRecords with `nextDue` in the past or within 7 days should surface as alerts.
-
-**Acceptance Criteria:**
-- [ ] Animal list filters by type and status.
-- [ ] Animal detail page shows health records, production logs, and lineage.
-- [ ] Can add health records and production logs from the detail page.
-- [ ] Production summary chart renders with real data.
-- [ ] Health reminders surface for upcoming/overdue records.
-
----
-
-### F-07: Task Scheduling — Recurring Tasks + Completions
-
-**Module:** Tasks
-**Priority:** P1
-**Route:** `/dashboard/tasks`
-
-1. **Task list** with sections: Overdue, Due Today, Upcoming This Week, All Active.
-2. **Stat cards** (already in UI shell): Due Today, Overdue, Completed This Week, Upcoming This Week — computed from DB.
-3. **Add Task** — form with title, description, category, priority, recurrence rule (UI for common patterns: daily, weekly, monthly, quarterly, annual + custom RRULE), estimatedMinutes.
-4. **Complete Task** — creates a `TaskCompletion` record (with optional duration and notes), then recalculates `nextDue` from the RRULE. Updates `lastCompleted`.
-5. **Task detail/edit** — inline or dialog edit of task properties.
-6. **Deactivate Task** — sets `isActive` to false (soft delete). Does not delete completions.
-7. **Completion history** — expandable list of `TaskCompletion` entries for a task.
-
-**Acceptance Criteria:**
-- [ ] Stat cards reflect real data.
-- [ ] Completing a task creates a completion record and advances `nextDue`.
-- [ ] Recurrence options cover daily, weekly, monthly, quarterly, annual.
-- [ ] Overdue tasks are visually distinct (red/amber styling).
-- [ ] Deactivated tasks disappear from the active list.
-
----
-
-### F-08: Resource Tracking — Consumables Ledger
-
-**Module:** Resources
-**Priority:** P2
-**Route:** `/dashboard/resources`
-
-1. **Resource summary cards** (already in UI shell): One per resource type showing current computed balance (sum of purchases minus sum of usage), unit, and trend.
-2. **Log Usage/Purchase** — form with type (from `ResourceType` enum + free text), action (usage/purchase/adjustment), quantity, unit, cost, vendor, date.
-3. **Resource history** — filterable table of `ResourceLog` entries by type and date range.
-4. **Consumption trend chart** (Recharts): line chart of net balance over time per resource type. Weekly or monthly granularity toggle.
-5. **Low-stock alerts**: Configurable thresholds per resource type. Alert when computed balance drops below threshold.
-
-**Acceptance Criteria:**
-- [ ] Summary cards show computed balances from actual logs.
-- [ ] Can log usage, purchases, and adjustments.
-- [ ] History table filters by type and date range.
-- [ ] Trend chart renders with real data.
-- [ ] Low-stock alerts trigger at configured thresholds.
-
----
-
-### F-09: Weather — Manual + API Snapshots
-
-**Module:** Weather
-**Priority:** P2
-**Route:** `/dashboard/weather`
-
-1. **Current conditions card** (already in UI shell): temperature, feels-like, humidity, wind speed/direction. Data source: latest `WeatherSnapshot`.
-2. **Manual weather log** — form to create a `WeatherSnapshot` with all fields.
-3. **Optional API integration** — if an OpenWeatherMap API key is configured in Settings, auto-fetch current conditions and create a snapshot on a configurable interval.
-4. **Frost alert banner**: Displayed when latest or upcoming snapshot has `temperature <= 32`.
-5. **Historical data table** — paginated list of snapshots, filterable by date range.
-6. **Temperature trend chart** (Recharts): line chart of temperature over time with precipitation overlay.
-
-**Acceptance Criteria:**
-- [ ] Current conditions card shows latest snapshot data.
-- [ ] Manual weather logging creates a valid snapshot.
-- [ ] Frost alert appears when temperature <= 32.
-- [ ] Historical table is paginated and filterable.
-- [ ] Trend chart renders with real data.
-
----
-
-### F-10: Emergency Preparedness — Checklists + Readiness Score
-
-**Module:** Preparedness
-**Priority:** P2
-**Route:** `/dashboard/preparedness`
-
-1. **Readiness score** (already in UI shell): Percentage calculated as `completedItems / totalItems` across all non-template checklists.
-2. **Checklist list**: Shows all checklists with name, category, completion progress bar.
-3. **New Checklist** — create blank or clone from a template (`isTemplate: true`).
-4. **Checklist detail**: Ordered list of `ChecklistItem` entries. Toggle completion (updates `isCompleted` + `completedAt`). Drag-to-reorder (updates `sortOrder`).
-5. **Add/edit/delete checklist items** inline.
-6. **Template management**: Mark checklists as templates. Templates cannot be directly checked off — they must be cloned first.
-7. **Category filter**: Filter checklists by category (evacuation, shelter-in-place, power-outage, etc.).
-
-**Acceptance Criteria:**
-- [ ] Readiness score is computed from real completion data.
-- [ ] Cloning a template creates a new checklist with all items (all unchecked).
-- [ ] Items can be toggled, reordered, added, edited, and deleted.
-- [ ] Templates cannot be directly completed.
-- [ ] Category filter works.
-
----
-
-### F-11: Settings — Instance Configuration
-
-**Module:** System
-**Priority:** P1
-**Route:** `/dashboard/settings`
-
-1. **Location settings**: USDA hardiness zone, ZIP code, coordinates (lat/long for weather API).
-2. **Unit preference**: Imperial or Metric. Stored in DB or config. Affects display of temperature, weight, volume across all modules.
-3. **Notification preferences**: Toggle switches for expiration warnings, equipment service reminders, frost alerts, task reminders. Configurable thresholds (e.g., expiration warning = 30 days).
-4. **Weather API key**: Optional OpenWeatherMap API key input.
-5. **PIN management**: Change PIN (requires current PIN).
-6. **Data management**: Export all data as JSON. Import from JSON backup.
-7. All settings persisted via server action. Single settings record or key-value store.
-
-**Acceptance Criteria:**
-- [ ] All settings fields persist and reload on page refresh.
-- [ ] Unit preference changes are reflected across the app.
-- [ ] PIN can be changed.
-- [ ] Export produces a valid JSON file with all data.
-- [ ] Import restores data from a JSON backup.
-
----
-
-### F-12: Notifications — In-App Alert Feed
-
-**Module:** System
-**Priority:** P2
-**Route:** `/dashboard/notifications`
-
-1. **Notification list**: Ordered by timestamp desc. Types: warning, alert, info, success.
-2. **Auto-generated notifications** from:
-   - Storage: items expiring within configured threshold.
-   - Equipment: service overdue.
-   - Tasks: overdue tasks.
-   - Weather: frost alerts.
-   - Health records: upcoming vaccinations/vet visits (`nextDue`).
-3. **Read/unread state**: Unread notifications have a visual indicator (dot). "Mark all as read" button.
-4. **Delete** individual notifications.
-5. **Notification badge** on the sidebar Bell icon showing unread count.
-
-**Acceptance Criteria:**
-- [ ] Notifications are auto-generated from cross-module triggers.
-- [ ] Read/unread toggle works.
-- [ ] "Mark all as read" clears all unread indicators.
-- [ ] Individual delete works.
-- [ ] Sidebar badge shows unread count.
-
----
-
-### F-13: Offline-First with IndexedDB
-
-**Module:** Cross-cutting
-**Priority:** P2
-
-1. **Read cache**: On page load, serve data from IndexedDB (`idb` library) while fetching fresh data from the server. Show stale data immediately; replace when server responds.
-2. **Write queue**: When offline, queue mutations (create/update/delete) in IndexedDB. Sync to server when connectivity resumes.
-3. **Conflict resolution**: Last-write-wins based on `updatedAt` timestamp. No merge.
-4. **Sync indicator**: UI element (e.g., in sidebar or top bar) showing online/offline status and pending sync count.
-
-**Acceptance Criteria:**
-- [ ] Pages render cached data when server is unreachable.
-- [ ] Mutations made offline are synced when connection restores.
-- [ ] Sync indicator shows pending count and online/offline status.
-
----
-
-## UI/UX Design
-
-> *No content yet — see template instructions in docs/other/prd-pre-migration.md*
-
----
-
-## Architecture
-
-### Server Action Patterns
-
-All data mutations and queries follow this pattern:
-
-```typescript
-// src/actions/storage.ts
-"use server";
-
-import { db } from "@/lib/db";
-import { z } from "zod";
-
-const CreateStorageItemSchema = z.object({
-  name: z.string().min(1),
-  category: z.string(),
-  quantity: z.number().positive(),
-  unit: z.string().min(1),
-  location: z.string().optional(),
-  purchaseDate: z.date().optional(),
-  expirationDate: z.date().optional(),
-  calories: z.number().int().optional(),
-  notes: z.string().optional(),
-});
-
-export async function createStorageItem(input: z.infer<typeof CreateStorageItemSchema>) {
-  const data = CreateStorageItemSchema.parse(input);
-  return db.storageItem.create({ data });
-}
-```
-
-**Client-side pattern**: `@tanstack/react-query` with `useMutation` calling server actions, `invalidateQueries` on success.
-
-### Shared Type Enums
-
-Defined in `src/types/index.ts`:
-
-| Type | Values |
-|---|---|
-| `RecurrenceInterval` | daily, weekly, monthly, quarterly, annual |
-| `TaskPriority` | low, medium, high, urgent |
-| `ResourceType` | water, fuel, seeds, feed, other |
-| `LivestockType` | chicken, duck, goose, turkey, cow, pig, goat, sheep, horse, rabbit, bee, other |
-| `EquipmentCategory` | tractor, mower, tiller, chainsaw, generator, pump, vehicle, tool, other |
-| `StorageCategory` | grains, legumes, canned, freeze-dried, dehydrated, frozen, fresh, water, other |
-
-Additional interfaces: `DateRange`, `Coordinates`.
-
-### Existing Utilities
-
-| File | Exports | Notes |
-|---|---|---|
-| `src/lib/db.ts` | `db` (PrismaClient) | Singleton with dev logging |
-| `src/lib/utils.ts` | `cn()` | clsx + tailwind-merge |
-| | `formatDate()` | Intl.DateTimeFormat, "Jan 1, 2026" |
-| | `daysUntil()` | Days from now to target date |
-| | `pluralize()` | Simple singular/plural |
-
-### Seed Data Patterns
-
-The seed script (`prisma/seed.ts`) establishes these patterns:
-
-- **Crops**: 3 records (Tomato Roma, Lettuce Butterhead, Zucchini Black Beauty) with full companion/incompatible arrays.
-- **Emergency checklist**: 1 template ("72-Hour Emergency Kit") with 20 items using `sortOrder`.
-- **Tasks**: 4 recurring tasks using iCal RRULE strings (`FREQ=MONTHLY`, `FREQ=YEARLY;BYMONTH=3`, `FREQ=WEEKLY`).
-- **Storage items**: 3 items (White Rice, Pinto Beans, Canned Tomatoes) with categories, locations, expiration dates, and calorie counts.
-
----
-
-## Tech Stack
-
-> *No content yet — see template instructions in docs/other/prd-pre-migration.md*
-
----
-
-## API Design
-
-> *No content yet — see template instructions in docs/other/prd-pre-migration.md*
-
----
-
-## Security
-
-> *No content yet — see template instructions in docs/other/prd-pre-migration.md*
+- All server actions validate input with Zod schemas before any database operation.
 
 ---
 
@@ -1000,67 +956,14 @@ The seed script (`prisma/seed.ts`) establishes these patterns:
 
 ## Open Questions
 
-1. **Notification persistence model**: Should notifications be a separate DB table or computed on-the-fly at render time? *(truncated in source — answer pending)*
-
----
-
-## Revision History
-
-> *No content yet — see template instructions in docs/other/prd-pre-migration.md*
-
----
-project: homestead-hub
-status: draft
-version: 0.1.0
-date: 2025-01-01
----
-
-## Open Questions
-
 1. **Notification storage**: Should notifications be a separate Prisma model, or computed on-the-fly from existing data? A dedicated model allows read/unread state and deletion; computed is simpler.
 2. **Weather API polling**: Should auto-fetch run via a cron job, Next.js `revalidate`, or a client-side interval?
 3. **Data export format**: Plain JSON dump of all tables, or a structured format with version metadata for forward compatibility?
 4. **Resource thresholds**: Where to store per-resource-type low-stock thresholds? Settings table, or a dedicated `ResourceThreshold` model?
 5. **Offline scope**: Which modules get full offline support first, or all at once?
 
----
-
-## Requirements
-
-> *No content yet — see template instructions in docs/other/prd-pre-migration.md*
-
-## UI/UX Design
-
-> *No content yet — see template instructions in docs/other/prd-pre-migration.md*
-
-## Architecture
-
-> *No content yet — see template instructions in docs/other/prd-pre-migration.md*
-
-## Tech Stack
-
-> *No content yet — see template instructions in docs/other/prd-pre-migration.md*
-
-## API Design
-
-> *No content yet — see template instructions in docs/other/prd-pre-migration.md*
-
-## Security
-
-> *No content yet — see template instructions in docs/other/prd-pre-migration.md*
-
-## Success Metrics
-
-> *No content yet — see template instructions in docs/other/prd-pre-migration.md*
-
-## Testing Strategy
-
-> *No content yet — see template instructions in docs/other/prd-pre-migration.md*
-
-## Timeline & Phases
-
-> *No content yet — see template instructions in docs/other/prd-pre-migration.md*
-
 ## Revision History
 
-> *No content yet — see template instructions in docs/other/prd-pre-migration.md*
+| Version | Date | Notes |
+|---|---|---|
+| 0.1 | 2026-02-05 | Reverse-engineered from codebase. |
