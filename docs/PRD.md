@@ -1,9 +1,9 @@
 # homestead-hub — Product Requirements
 
-**Status:** Draft
-**Version:** 0.1
-**Last Updated:** 2026-02-05
-**Author:** Reverse-engineered from codebase
+**Status:** MVP — Feature Complete, Pre-Alpha
+**Version:** 0.2
+**Last Updated:** 2026-03-06
+**Author:** Reverse-engineered from codebase; supplemented from ASSESSMENT_DETAILED.md
 
 ---
 
@@ -12,6 +12,24 @@
 HomesteadHub is a self-hosted, offline-capable web application that gives a single homesteader complete control over food storage, garden planning, equipment maintenance, livestock management, weather tracking, task scheduling, resource monitoring, and emergency preparedness — with zero cloud dependencies, zero subscriptions, and zero third-party data access.
 
 The system runs on commodity hardware (Raspberry Pi, old laptop, home server), requires no recurring fees, and is accessible to anyone technically capable of running `docker compose up` or `npm run dev` on a local machine.
+
+---
+
+## Goals
+
+1. **Own your data completely** — all data lives on hardware you control; no cloud service has access to your homestead records.
+
+2. **Work without internet** — every module functions offline using IndexedDB caching; writes queue locally and sync when a connection is available.
+
+3. **Zero recurring cost** — no subscriptions, no SaaS fees, no API keys required for core functionality. One-time setup on commodity hardware.
+
+4. **Cover the full homestead lifecycle** — nine integrated modules (food storage, garden planning, equipment maintenance, livestock management, task scheduling, resource tracking, weather, emergency preparedness, and a unified dashboard) replace a collection of disconnected spreadsheets.
+
+5. **Be usable by a non-developer homesteader** — setup requires only `docker compose up` or `npm run dev`; day-to-day use requires no command-line interaction.
+
+6. **Support single-user simplicity** — no multi-tenancy, RBAC, or team management. A simple PIN/password gate is sufficient; the complexity budget goes into feature depth, not auth infrastructure.
+
+7. **Remain extensible** — the 16-model Prisma schema and modular Next.js App Router structure should allow new modules (beekeeping, water systems, energy tracking) to be added without refactoring existing ones.
 
 ---
 
@@ -932,13 +950,91 @@ All data access is mediated through Next.js Server Actions (see Architecture sec
 
 ## Success Metrics
 
-> *No content yet — see template instructions in docs/other/prd-pre-migration.md*
+HomesteadHub is an open source, self-hosted tool with no revenue model. Success is measured by community adoption and user outcomes.
+
+### Adoption
+
+| Metric | Target |
+|--------|--------|
+| GitHub stars (6 months post-public launch) | 500+ |
+| Docker Hub pulls (6 months) | 1,000+ |
+| Community forks (active PRs / issues) | 20+ |
+| README setup success rate (first-time users) | ≥ 90% |
+
+### User Outcomes
+
+| Metric | Target |
+|--------|--------|
+| Users reporting full food storage tracking in use | ≥ 60% of active users |
+| Users enabling offline sync (IndexedDB mode) | ≥ 40% |
+| Average modules actively used per installation | ≥ 4 of 9 |
+| Data export (JSON/CSV) used at least once | ≥ 70% |
+
+### Technical Health
+
+| Metric | Target |
+|--------|--------|
+| Test coverage (unit + integration) | ≥ 80% of server actions |
+| Lighthouse accessibility score | ≥ 90 |
+| First Contentful Paint (dashboard) on Raspberry Pi 4 | < 3 seconds |
+| Zero critical/high npm audit vulnerabilities | Always |
+
+### Open Source Health
+
+- Issues closed within 14 days: ≥ 70%
+- PRs reviewed within 7 days: ≥ 80%
+- No dependency on proprietary services (always self-hosted-first)
 
 ---
 
 ## Testing Strategy
 
-> *No content yet — see template instructions in docs/other/prd-pre-migration.md*
+### Unit Tests (Vitest)
+
+All Server Actions must have unit tests covering:
+- Happy path (valid input → correct Prisma call)
+- Validation error (invalid input → Zod error, no Prisma call)
+- Not-found error (entity missing → 404-equivalent)
+
+**Coverage targets:**
+
+| Module | Status | Priority |
+|--------|--------|---------|
+| Storage (F-03) | ✅ Tests exist | — |
+| Tasks (F-07) | ✅ Tests exist | — |
+| Dashboard (F-02) | ✅ Tests exist | — |
+| Settings (F-11) | ✅ Tests exist | — |
+| Garden (F-04) | ❌ No tests | High |
+| Equipment (F-05) | ❌ No tests | High |
+| Livestock (F-06) | ❌ No tests | High |
+| Resources (F-08) | ❌ No tests | Medium |
+| Weather (F-09) | ❌ No tests | Medium |
+| Preparedness (F-10) | ❌ No tests | Medium |
+| Notifications (F-12) | ❌ No tests | Medium |
+| Offline Sync (F-13) | ❌ No tests | Low (browser-only) |
+
+**Mock strategy:** `vitest-mock-extended` mocks the Prisma client. No database required for unit tests.
+
+### Integration Tests
+
+Not yet implemented. Target: at least one end-to-end test per phase:
+- Phase 0: PIN login flow (set PIN → login → access dashboard → lock)
+- Phase 1: Storage CRUD + expiration alert trigger
+- Phase 2: Garden planting + harvest log
+- Phase 3: Weather snapshot + frost alert
+
+### CI/CD
+
+GitHub Actions workflow (`npm run lint && npm test`) on every push to `main` and all PRs. This is a **pre-Alpha blocker** — no CI currently exists.
+
+### Manual Testing Checklist
+
+Before any public release:
+- [ ] All modules render correctly on Chrome, Firefox, Safari
+- [ ] Mobile layout (375px) functional — sidebar collapses, forms usable
+- [ ] Offline mode: disable network, verify cached data loads, mutations queue
+- [ ] Docker setup: `docker compose up` from clean clone installs, seeds, and loads dashboard
+- [ ] Data export produces valid JSON importable on fresh instance
 
 ---
 
@@ -962,8 +1058,77 @@ All data access is mediated through Next.js Server Actions (see Architecture sec
 4. **Resource thresholds**: Where to store per-resource-type low-stock thresholds? Settings table, or a dedicated `ResourceThreshold` model?
 5. **Offline scope**: Which modules get full offline support first, or all at once?
 
+## Competitive Landscape
+
+### Comparable Tools
+
+| Tool | Pricing | Hosting | Offline | Modules |
+|------|---------|---------|---------|---------|
+| Farmbrite | $49–$199/month | Cloud only | No | Livestock, inventory, labor |
+| Granular | $59–$499/month | Cloud only | No | Crops, equipment, finances |
+| AgSquared | Free–$20/month | Cloud only | No | Field records, spray logs |
+| FarmBooks | $300 one-time | Windows desktop | Yes (local) | Accounting, inventory |
+| Notion (DIY) | Free–$16/month | Cloud | No | Anything with templates |
+| **HomesteadHub** | **Free (open source)** | **Self-hosted** | **Yes** | **9 modules (full lifecycle)** |
+
+### Positioning Statement
+
+HomesteadHub is the only free, self-hosted, offline-capable homestead management system designed for individual homesteaders and small farms. All commercial competitors are cloud SaaS with subscription pricing — they cannot offer zero-cloud-dependency, air-gapped operation, or Raspberry Pi support.
+
+**The target user** (engineer-farmer-survivalist) is highly motivated by data ownership and self-reliance. They are capable of running Docker, resistant to subscription pricing, and likely to advocate loudly for tools they trust. This is an ideal open source community profile.
+
+### Competitive Moat
+
+1. **Offline-first is hard**: IndexedDB sync with conflict resolution is non-trivial. This is a genuine technical barrier that eliminates most competitors immediately.
+2. **Zero cloud dependencies**: Competitors are architected around cloud infrastructure. Retrofitting air-gapped operation is a multi-year rework. HomesteadHub is built offline-first.
+3. **Raspberry Pi footprint**: The entire stack runs on a $60 Raspberry Pi 4. No competitor markets to this hardware class.
+4. **Open source trust**: Self-reliance communities are deeply skeptical of third-party data custody. Open source code — readable, auditable, forkable — is a direct response to that skepticism.
+
+### Monetization Potential (Optional Future Path)
+
+The tool is and should remain free and open source. Optional revenue paths that do not compromise the self-hosted commitment:
+- **Managed cloud tier**: Hosted version for users who want the software without operating a server ($5–$10/month). Open source users get the same features locally.
+- **Support / consulting**: Setup assistance for non-technical users.
+- **Prebuilt hardware**: Raspberry Pi pre-configured with HomesteadHub ("plug and plant").
+
+---
+
+## Build Status
+
+### Implementation Status (All Phases)
+
+From ASSESSMENT_DETAILED.md (February 2026 — code audit):
+
+| Phase | Scope | Status |
+|-------|-------|--------|
+| 0 | PIN auth, Settings, Onboarding tour | ✅ Complete |
+| 1 | Food Storage, Tasks, Dashboard | ✅ Complete |
+| 2 | Garden, Equipment, Livestock | ✅ Complete |
+| 3 | Resources, Weather, Emergency Preparedness | ✅ Complete |
+| 4 | Notifications, Offline sync (IndexedDB) | ✅ Complete |
+
+**All PRD features implemented.** Codebase: ~8,500 lines of TypeScript across 70+ source files.
+
+### Pre-Alpha Blockers
+
+| Blocker | Severity | Status |
+|---------|----------|--------|
+| README had incorrect setup instructions | Critical | ✅ Fixed |
+| No Docker deployment story | High | ✅ Fixed |
+| No CI/CD pipeline | High | ❌ Not started |
+| No tests: garden, equipment, livestock modules | Medium | ❌ Not started |
+| Schema managed with `db:push` (destructive) | Medium | ❌ Needs `prisma migrate` |
+| No data export (CSV/JSON) | Low | ❌ Not started |
+
+### Database Note
+
+The PRD references PostgreSQL as the target database. The current implementation uses **SQLite** (correct choice for self-hosted, single-household). The Prisma schema is configured to support PostgreSQL via environment variable swap for future hosted tier use. References to `PostgreSQL` in the data model section of this PRD describe the schema type system, not the runtime database.
+
+---
+
 ## Revision History
 
 | Version | Date | Notes |
 |---|---|---|
 | 0.1 | 2026-02-05 | Reverse-engineered from codebase. |
+| 0.2 | 2026-03-06 | Filled Success Metrics and Testing Strategy; added Competitive Landscape, Build Status; updated status to MVP/Pre-Alpha; corrected database (SQLite) and framework version (Next.js 16.1.6). |
