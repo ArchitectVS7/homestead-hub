@@ -44,3 +44,7 @@ prisma/*.db-journal
 # IDE
 .idea/
 .vscode/
+
+# Coding
+CLAUDE.md
+QWEN.md
