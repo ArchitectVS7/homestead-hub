@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Plus, Activity, Egg, ArrowLeft, Syringe, History } from "lucide-react";
+import { Plus, Activity, Egg, ArrowLeft, Syringe, History, Users, AlertTriangle } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
@@ -12,7 +12,7 @@ import { CreateHealthRecordSchema, CreateProductionLogSchema } from "@/lib/valid
 import { z } from "zod";
 
 interface AnimalDetailViewProps {
-    animal: any; // Using any for simplicity with complex includes, ideally typed fully
+    animal: any;
 }
 
 export function AnimalDetailView({ animal }: AnimalDetailViewProps) {
@@ -22,6 +22,24 @@ export function AnimalDetailView({ animal }: AnimalDetailViewProps) {
 
     const [healthData, setHealthData] = useState<Partial<z.infer<typeof CreateHealthRecordSchema>>>({ type: "vaccination", date: new Date() });
     const [prodData, setProdData] = useState<Partial<z.infer<typeof CreateProductionLogSchema>>>({ date: new Date(), unit: "count" });
+
+    // Calculate upcoming health reminders
+    const upcomingReminders = animal.healthRecords?.filter((r: any) => {
+        if (!r.nextDue) return false;
+        const nextDue = new Date(r.nextDue);
+        const now = new Date();
+        const thirtyDaysFromNow = new Date();
+        thirtyDaysFromNow.setDate(thirtyDaysFromNow.getDate() + 30);
+        return nextDue >= now && nextDue <= thirtyDaysFromNow;
+    }).sort((a: any, b: any) => new Date(a.nextDue).getTime() - new Date(b.nextDue).getTime()) || [];
+
+    // Calculate days until next due
+    const getDaysUntil = (dateString: string) => {
+        const nextDue = new Date(dateString);
+        const now = new Date();
+        const diffTime = nextDue.getTime() - now.getTime();
+        return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    };
 
     const handleHealth = async () => {
         try {
@@ -110,6 +128,83 @@ export function AnimalDetailView({ animal }: AnimalDetailViewProps) {
 
                 {/* Feeding/Production/Health Lists */}
                 <div className="md:col-span-2 space-y-6">
+                    {/* Health Reminders */}
+                    {upcomingReminders.length > 0 && (
+                        <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
+                            <div className="flex items-center gap-2 mb-3">
+                                <AlertTriangle className="w-5 h-5 text-amber-600" />
+                                <h3 className="font-semibold text-amber-900">Upcoming Health Reminders</h3>
+                            </div>
+                            <div className="space-y-2">
+                                {upcomingReminders.map((reminder: any) => {
+                                    const daysUntil = getDaysUntil(reminder.nextDue);
+                                    const isUrgent = daysUntil <= 7;
+                                    return (
+                                        <div key={reminder.id} className={cn(
+                                            "flex items-center justify-between p-3 rounded-lg border",
+                                            isUrgent ? "bg-red-50 border-red-200" : "bg-white border-amber-100"
+                                        )}>
+                                            <div>
+                                                <p className="font-medium text-soil-900 capitalize">{reminder.type} - {reminder.description}</p>
+                                                <p className="text-sm text-soil-500">Due: {formatDate(reminder.nextDue)}</p>
+                                            </div>
+                                            <div className={cn(
+                                                "px-3 py-1 rounded-full text-sm font-medium",
+                                                isUrgent ? "bg-red-100 text-red-800" : "bg-amber-100 text-amber-800"
+                                            )}>
+                                                {daysUntil === 0 ? "Due today!" : `${daysUntil} days`}
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Lineage Section */}
+                    {(animal.parent || animal.offspring?.length > 0) && (
+                        <div className="bg-white rounded-xl border border-soil-200 overflow-hidden">
+                            <div className="bg-soil-50 px-6 py-3 border-b border-soil-200 font-semibold text-soil-900 flex items-center gap-2">
+                                <Users className="w-5 h-5" />
+                                Lineage
+                            </div>
+                            <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-6">
+                                {/* Parent */}
+                                {animal.parent && (
+                                    <div>
+                                        <h4 className="text-sm font-medium text-soil-500 uppercase mb-2">Parent</h4>
+                                        <Link
+                                            href={`/dashboard/livestock/${animal.parent.id}`}
+                                            className="block p-3 rounded-lg border border-soil-200 hover:border-forest-300 hover:bg-forest-50 transition-colors"
+                                        >
+                                            <p className="font-medium text-soil-900">{animal.parent.name}</p>
+                                            <p className="text-sm text-soil-500 capitalize">{animal.parent.breed} {animal.parent.type}</p>
+                                        </Link>
+                                    </div>
+                                )}
+                                {/* Offspring */}
+                                {animal.offspring && animal.offspring.length > 0 && (
+                                    <div>
+                                        <h4 className="text-sm font-medium text-soil-500 uppercase mb-2">
+                                            Offspring ({animal.offspring.length})
+                                        </h4>
+                                        <div className="space-y-2 max-h-48 overflow-y-auto">
+                                            {animal.offspring.map((offspring: any) => (
+                                                <Link
+                                                    key={offspring.id}
+                                                    href={`/dashboard/livestock/${offspring.id}`}
+                                                    className="block p-2 rounded-lg border border-soil-200 hover:border-forest-300 hover:bg-forest-50 transition-colors"
+                                                >
+                                                    <p className="font-medium text-soil-900 text-sm">{offspring.name}</p>
+                                                    <p className="text-xs text-soil-500 capitalize">{offspring.breed} {offspring.type}</p>
+                                                </Link>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    )}
                     {/* Production Stats */}
                     <div className="bg-white rounded-xl border border-soil-200 overflow-hidden">
                         <div className="bg-soil-50 px-6 py-3 border-b border-soil-200 font-semibold text-soil-900 flex justify-between items-center">

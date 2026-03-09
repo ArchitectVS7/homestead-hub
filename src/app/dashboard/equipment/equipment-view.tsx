@@ -1,13 +1,14 @@
 "use client";
 
 import { useState } from "react";
-import { Plus, Wrench, AlertTriangle, CheckCircle2, MoreHorizontal, History } from "lucide-react";
+import { Plus, Wrench, AlertTriangle, CheckCircle2, XCircle, MoreHorizontal, History, Eye } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { formatDate, cn } from "@/lib/utils";
 import { createEquipment, updateEquipment, logMaintenance, deleteEquipment, EquipmentWithMaintenance } from "@/actions/equipment";
 import { CreateEquipmentSchema, CreateMaintenanceSchema } from "@/lib/validations";
 import { z } from "zod";
+import Link from "next/link";
 
 interface EquipmentViewProps {
     initialEquipment: EquipmentWithMaintenance[];
@@ -91,7 +92,10 @@ export function EquipmentView({ initialEquipment, dueCount }: EquipmentViewProps
             {dueCount > 0 && (
                 <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-center gap-3 text-amber-800">
                     <AlertTriangle className="w-5 h-5 flex-shrink-0" />
-                    <span className="font-medium">{dueCount} equipment item{dueCount > 1 ? "s" : ""} due for service.</span>
+                    <div>
+                        <span className="font-medium">{dueCount} equipment item{dueCount > 1 ? "s" : ""} due for service.</span>
+                        <span className="text-sm ml-2 text-amber-700">Check maintenance schedules and log service to update status.</span>
+                    </div>
                 </div>
             )}
 
@@ -116,11 +120,14 @@ export function EquipmentView({ initialEquipment, dueCount }: EquipmentViewProps
                                 </td>
                                 <td className="px-6 py-3">
                                     <span className={cn(
-                                        "px-2 py-0.5 rounded-full text-xs font-medium capitalize",
+                                        "px-2 py-1 rounded-full text-xs font-medium capitalize flex items-center gap-1.5 w-fit",
                                         item.status === "operational" ? "bg-green-100 text-green-800" :
                                             item.status === "needs-service" ? "bg-amber-100 text-amber-800" :
                                                 "bg-red-100 text-red-800"
                                     )}>
+                                        {item.status === "operational" && <CheckCircle2 className="w-3.5 h-3.5" />}
+                                        {item.status === "needs-service" && <AlertTriangle className="w-3.5 h-3.5" />}
+                                        {item.status === "out-of-order" && <XCircle className="w-3.5 h-3.5" />}
                                         {item.status.replace("-", " ")}
                                     </span>
                                 </td>
@@ -130,6 +137,13 @@ export function EquipmentView({ initialEquipment, dueCount }: EquipmentViewProps
                                     {item.lastServiceDate ? formatDate(item.lastServiceDate) : "Never"}
                                 </td>
                                 <td className="px-6 py-3 text-right flex justify-end gap-2 items-center">
+                                    <Link
+                                        href={`/dashboard/equipment/${item.id}`}
+                                        className="p-1.5 text-blue-600 hover:bg-blue-50 rounded opacity-0 group-hover:opacity-100 transition-all"
+                                        title="View Details"
+                                    >
+                                        <Eye className="w-4 h-4" />
+                                    </Link>
                                     <button
                                         className="p-1.5 text-slate-500 hover:bg-slate-100 rounded opacity-0 group-hover:opacity-100 transition-all"
                                         title="Log Maintenance"
@@ -137,7 +151,6 @@ export function EquipmentView({ initialEquipment, dueCount }: EquipmentViewProps
                                     >
                                         <Wrench className="w-4 h-4" />
                                     </button>
-                                    {/* More actions: Edit, Delete, View History */}
                                 </td>
                             </tr>
                         ))}

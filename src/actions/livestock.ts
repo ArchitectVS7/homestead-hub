@@ -35,6 +35,7 @@ export async function getAnimalById(id: string) {
             healthRecords: { orderBy: { date: "desc" } },
             productionLogs: { orderBy: { date: "desc" }, take: 20 },
             offspring: true,
+            parent: true,
         },
     });
 }
@@ -93,6 +94,84 @@ export async function getProductionStats() {
     });
 
     return summary;
+}
+
+/**
+ * Get production data formatted for charts
+ * Returns daily aggregation for the specified period
+ */
+export async function getProductionChartData(days: number = 30) {
+    const startDate = new Date();
+    startDate.setDate(startDate.getDate() - days);
+
+    const logs = await db.productionLog.findMany({
+        where: {
+            date: { gte: startDate },
+        },
+        orderBy: { date: "asc" },
+    });
+
+    // Aggregate by date and type
+    const dailyData = new Map<string, Record<string, number>>();
+    
+    // Initialize all dates in range
+    for (let i = 0; i < days; i++) {
+        const date = new Date();
+        date.setDate(date.getDate() - i);
+        const dateStr = date.toISOString().split("T")[0];
+        dailyData.set(dateStr, {});
+    }
+
+    // Aggregate logs by date
+    logs.forEach(log => {
+        const dateStr = log.date.toISOString().split("T")[0];
+        if (!dailyData.has(dateStr)) {
+            dailyData.set(dateStr, {});
+        }
+        const dayData = dailyData.get(dateStr)!;
+        const key = log.type;
+        dayData[key] = (dayData[key] || 0) + log.quantity;
+    });
+
+    // Convert to array format for Recharts
+    return Array.from(dailyData.entries())
+        .map(([date, data]) => ({
+            date,
+            ...data,
+        }))
+        .reverse();
+}
+
+/**
+ * Get production summary by animal type
+ */
+export async function getProductionByType() {
+    const logs = await db.productionLog.findMany({
+        where: {
+            date: { gte: new Date(new Date().setDate(new Date().getDate() - 30)) },
+        },
+        include: {
+            animal: {
+                select: { type: true },
+            },
+        },
+    });
+
+    const summary: Record<string, { total: number; unit: string }> = {};
+    
+    logs.forEach(log => {
+        const key = `${log.animal.type}-${log.type}`;
+        if (!summary[key]) {
+            summary[key] = { total: 0, unit: log.unit };
+        }
+        summary[key].total += log.quantity;
+    });
+
+    return Object.entries(summary).map(([key, value]) => ({
+        name: key.replace("-", " - "),
+        value: value.total,
+        unit: value.unit,
+    }));
 }
 
 export async function getHealthReminders(days: number = 30) {

@@ -56,6 +56,67 @@ export async function getEquipmentWithHistory(id: string) {
     });
 }
 
+/**
+ * Get service due status with detailed information
+ */
+export async function getServiceDueStatus(id: string) {
+    const equipment = await db.equipment.findUnique({
+        where: { id },
+    });
+
+    if (!equipment || equipment.status === "out-of-order") {
+        return { isDue: false, reason: null, daysOverdue: 0, hoursOverdue: 0 };
+    }
+
+    let isDue = false;
+    let reason = null;
+    let daysOverdue = 0;
+    let hoursOverdue = 0;
+
+    // Check Days Interval
+    if (equipment.serviceIntervalDays && equipment.lastServiceDate) {
+        const daysSince = Math.floor((new Date().getTime() - new Date(equipment.lastServiceDate).getTime()) / (1000 * 60 * 60 * 24));
+        if (daysSince >= equipment.serviceIntervalDays) {
+            isDue = true;
+            daysOverdue = daysSince - equipment.serviceIntervalDays;
+            reason = `Overdue by ${daysOverdue} days`;
+        }
+    }
+
+    // Check Hours Interval
+    if (equipment.serviceIntervalHours && equipment.currentHours !== null && equipment.lastServiceHours !== null) {
+        const hoursSince = equipment.currentHours - equipment.lastServiceHours;
+        if (hoursSince >= equipment.serviceIntervalHours) {
+            isDue = true;
+            hoursOverdue = hoursSince - equipment.serviceIntervalHours;
+            reason = reason ? `${reason}, ${hoursOverdue} hours overdue` : `Overdue by ${hoursOverdue} hours`;
+        }
+    }
+
+    return { isDue, reason, daysOverdue, hoursOverdue };
+}
+
+/**
+ * Get maintenance statistics for equipment
+ */
+export async function getMaintenanceStats(id: string) {
+    const records = await db.maintenanceRecord.findMany({
+        where: { equipmentId: id },
+    });
+
+    const totalCost = records.reduce((sum, r) => sum + (r.cost || 0), 0);
+    const lastRecord = records.length > 0 ? records[0] : null;
+    const averageCost = records.length > 0 ? totalCost / records.length : 0;
+
+    return {
+        totalRecords: records.length,
+        totalCost,
+        averageCost,
+        lastServiceDate: lastRecord?.date || null,
+        lastServiceType: lastRecord?.type || null,
+    };
+}
+
 function isServiceDue(eq: any): boolean {
     if (eq.status === "out-of-order") return false; // Needs repair, not routine service
 

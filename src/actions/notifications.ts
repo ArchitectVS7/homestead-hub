@@ -4,9 +4,9 @@ import { db } from "@/lib/db";
 import { revalidatePath } from "next/cache";
 import { getExpiringItems } from "@/actions/storage";
 import { getServiceDueEquipment } from "@/actions/equipment";
-// import { getFrostAlerts } from "@/actions/weather"; // Need to check if implemented
+import { getFrostAlert } from "@/actions/weather";
 import { getHealthReminders } from "@/actions/livestock";
-// import { getOverdueTasks } from "@/actions/tasks"; // Need to check implementation
+import { getTaskSections } from "@/actions/tasks";
 
 type Notification = {
     id: string;
@@ -75,6 +75,9 @@ export async function deleteNotification(id: string): Promise<void> {
     }
 }
 
+/**
+ * Generate notifications from all modules
+ */
 export async function generateNotifications(): Promise<void> {
     console.log("Generating notifications...");
     try {
@@ -102,15 +105,39 @@ export async function generateNotifications(): Promise<void> {
             });
         }
 
-        // 3. Livestock: Health Reminders
+        // 3. Tasks: Overdue Tasks
+        const taskSections = await getTaskSections();
+        for (const task of taskSections.overdue) {
+            await createNotificationIfNotExists({
+                type: 'alert',
+                title: 'Task Overdue',
+                description: `${task.title} is overdue.`,
+                source: 'tasks',
+                sourceId: task.id
+            });
+        }
+
+        // 4. Weather: Frost Alerts
+        const frostAlert = await getFrostAlert();
+        if (frostAlert?.isFrost) {
+            await createNotificationIfNotExists({
+                type: 'warning',
+                title: 'Frost Alert',
+                description: `Temperature dropped to ${frostAlert.temperature}°F. Protect plants and animals.`,
+                source: 'weather',
+                sourceId: frostAlert.timestamp?.toISOString() || 'frost'
+            });
+        }
+
+        // 5. Livestock: Health Reminders
         const healthReminders = await getHealthReminders();
         for (const record of healthReminders) {
             await createNotificationIfNotExists({
                 type: 'info',
                 title: 'Health Reminder',
-                description: `Upcoming ${record.type} for animal.`, // Ideally fetched animal name if included
+                description: `Upcoming ${record.type} for ${record.title.replace('Health Reminder: ', '')}.`,
                 source: 'livestock',
-                sourceId: record.id // or record.animalId
+                sourceId: record.id
             });
         }
 

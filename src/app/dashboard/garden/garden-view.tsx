@@ -1,19 +1,27 @@
 "use client";
 
 import { useState } from "react";
-import { Plus, Sprout, Calendar as CalIcon, Grid, List, Leaf, Shovel, MoreHorizontal } from "lucide-react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Plus, Sprout, Calendar as CalIcon, Grid, List, Shovel, Edit2, Trash2, AlertTriangle } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { formatDate, cn } from "@/lib/utils";
-import { createCrop, createPlanting, logHarvest, deleteCrop, deletePlanting, PlantingWithCrop } from "@/actions/garden";
-import { CreateCropSchema, CreatePlantingSchema } from "@/lib/validations";
+import { cn, formatDate } from "@/lib/utils";
+import { createCrop, createPlanting, logHarvest, deleteCrop, deletePlanting, updateCrop, PlantingWithCrop, checkCompanionConflict } from "@/actions/garden";
+import { CreateCropSchema, CreatePlantingSchema, UpdateCropSchema } from "@/lib/validations";
 import { z } from "zod";
+import { CalendarView } from "./calendar-view";
 
 interface Crop {
     id: string;
     name: string;
     variety: string | null;
     daysToMaturity: number | null;
+    plantingDepth?: string | null;
+    spacing?: string | null;
+    sunRequirement?: string | null;
+    waterRequirement?: string | null;
+    companionPlants?: string | null;
+    incompatiblePlants?: string | null;
+    notes?: string | null;
 }
 
 interface GardenViewProps {
@@ -22,15 +30,18 @@ interface GardenViewProps {
 }
 
 export function GardenView({ initialCrops, initialPlantings }: GardenViewProps) {
-    const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
+    const [viewMode, setViewMode] = useState<"grid" | "list" | "calendar">("grid");
     const [activeTab, setActiveTab] = useState<"garden" | "crops">("garden");
 
     const [isNewPlantingOpen, setIsNewPlantingOpen] = useState(false);
     const [isNewCropOpen, setIsNewCropOpen] = useState(false);
+    const [isEditCropOpen, setIsEditCropOpen] = useState(false);
     const [isHarvestOpen, setIsHarvestOpen] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
+    const [companionWarning, setCompanionWarning] = useState<string | null>(null);
 
     const [selectedPlanting, setSelectedPlanting] = useState<PlantingWithCrop | null>(null);
+    const [selectedCrop, setSelectedCrop] = useState<Crop | null>(null);
 
     // Forms
     const [plantingData, setPlantingData] = useState<Partial<z.infer<typeof CreatePlantingSchema>>>({ quantity: 1 });
@@ -47,11 +58,29 @@ export function GardenView({ initialCrops, initialPlantings }: GardenViewProps) 
             if (payload.daysToMaturity) payload.daysToMaturity = parseInt(payload.daysToMaturity);
 
             const result = CreateCropSchema.safeParse(payload);
-            if (!result.success) return; // Add error handling
+            if (!result.success) return;
 
             await createCrop(result.data);
             setIsNewCropOpen(false);
             setCropData({});
+            window.location.reload();
+        } catch (e) { console.error(e); } finally { setIsLoading(false); }
+    };
+
+    const handleUpdateCrop = async () => {
+        if (!selectedCrop) return;
+        try {
+            setIsLoading(true);
+            const payload: any = { ...cropData };
+            if (payload.daysToMaturity) payload.daysToMaturity = parseInt(payload.daysToMaturity);
+
+            const result = UpdateCropSchema.safeParse(payload);
+            if (!result.success) return;
+
+            await updateCrop(selectedCrop.id, result.data);
+            setIsEditCropOpen(false);
+            setCropData({});
+            setSelectedCrop(null);
             window.location.reload();
         } catch (e) { console.error(e); } finally { setIsLoading(false); }
     };
@@ -67,7 +96,22 @@ export function GardenView({ initialCrops, initialPlantings }: GardenViewProps) 
             const result = CreatePlantingSchema.safeParse(payload);
             if (!result.success) return;
 
-            await createPlanting(result.data);
+            // Check for companion conflict before creating
+            if (payload.cropId && payload.location) {
+                const conflict = await checkCompanionConflict(payload.cropId, payload.location);
+                if (conflict.hasConflict) {
+                    setCompanionWarning(conflict.conflictMessage || "Companion planting conflict detected");
+                    return;
+                }
+            }
+
+            const createResult = await createPlanting(result.data);
+            if (!createResult.success) {
+                if (createResult.conflictMessage) {
+                    setCompanionWarning(createResult.conflictMessage);
+                }
+                return;
+            }
             setIsNewPlantingOpen(false);
             setPlantingData({ quantity: 1 });
             window.location.reload();
@@ -87,6 +131,16 @@ export function GardenView({ initialCrops, initialPlantings }: GardenViewProps) 
             setIsHarvestOpen(false);
             window.location.reload();
         } catch (e) { console.error(e); } finally { setIsLoading(false); }
+    };
+
+    const openEditCrop = (crop: Crop) => {
+        setSelectedCrop(crop);
+        setCropData({
+            name: crop.name,
+            variety: crop.variety || undefined,
+            daysToMaturity: crop.daysToMaturity || undefined,
+        });
+        setIsEditCropOpen(true);
     };
 
     return (
@@ -131,58 +185,85 @@ export function GardenView({ initialCrops, initialPlantings }: GardenViewProps) 
             {activeTab === "garden" && (
                 <>
                     <div className="flex justify-end gap-2 mb-4">
-                        <button onClick={() => setViewMode("grid")} className={cn("p-2 rounded hover:bg-soil-100", viewMode === "grid" && "bg-soil-100 text-forest-700")}><Grid className="w-4 h-4" /></button>
-                        <button onClick={() => setViewMode("list")} className={cn("p-2 rounded hover:bg-soil-100", viewMode === "list" && "bg-soil-100 text-forest-700")}><List className="w-4 h-4" /></button>
+                        <button
+                            onClick={() => setViewMode("calendar")}
+                            className={cn("p-2 rounded hover:bg-soil-100 flex items-center gap-1", viewMode === "calendar" && "bg-soil-100 text-forest-700")}
+                            title="Calendar View"
+                        >
+                            <CalIcon className="w-4 h-4" />
+                            <span className="text-sm">Calendar</span>
+                        </button>
+                        <button
+                            onClick={() => setViewMode("grid")}
+                            className={cn("p-2 rounded hover:bg-soil-100", viewMode === "grid" && "bg-soil-100 text-forest-700")}
+                            title="Grid View"
+                        >
+                            <Grid className="w-4 h-4" />
+                        </button>
+                        <button
+                            onClick={() => setViewMode("list")}
+                            className={cn("p-2 rounded hover:bg-soil-100", viewMode === "list" && "bg-soil-100 text-forest-700")}
+                            title="List View"
+                        >
+                            <List className="w-4 h-4" />
+                        </button>
                     </div>
 
-                    <div className={cn("grid gap-4", viewMode === "grid" ? "grid-cols-1 md:grid-cols-2 lg:grid-cols-3" : "grid-cols-1")}>
-                        {activePlantings.length === 0 && <div className="col-span-full text-center py-12 text-soil-500 bg-white rounded-xl border border-soil-200">No active plantings. Get growing!</div>}
+                    {viewMode === "calendar" ? (
+                        <CalendarView plantings={activePlantings} />
+                    ) : (
+                        <div className={cn("grid gap-4", viewMode === "grid" ? "grid-cols-1 md:grid-cols-2 lg:grid-cols-3" : "grid-cols-1")}>
+                            {activePlantings.length === 0 && (
+                                <div className="col-span-full text-center py-12 text-soil-500 bg-white rounded-xl border border-soil-200">
+                                    No active plantings. Get growing!
+                                </div>
+                            )}
 
-                        {activePlantings.map(planting => (
-                            <div key={planting.id} className="bg-white rounded-xl border border-soil-200 p-5 hover:shadow-md transition-all flex flex-col justify-between group h-full">
-                                <div>
-                                    <div className="flex justify-between items-start">
-                                        <div>
-                                            <h3 className="font-bold text-soil-900 text-lg">{planting.crop.name}</h3>
-                                            <p className="text-sm text-soil-500">{planting.crop.variety || "No variety"}</p>
+                            {activePlantings.map(planting => (
+                                <div key={planting.id} className="bg-white rounded-xl border border-soil-200 p-5 hover:shadow-md transition-all flex flex-col justify-between group h-full">
+                                    <div>
+                                        <div className="flex justify-between items-start">
+                                            <div>
+                                                <h3 className="font-bold text-soil-900 text-lg">{planting.crop.name}</h3>
+                                                <p className="text-sm text-soil-500">{planting.crop.variety || "No variety"}</p>
+                                            </div>
+                                            <span className="bg-green-100 text-green-800 text-xs px-2 py-1 rounded-full font-medium">Growing</span>
                                         </div>
-                                        <span className="bg-green-100 text-green-800 text-xs px-2 py-1 rounded-full font-medium">Growing</span>
+
+                                        <div className="mt-4 space-y-2 text-sm">
+                                            <div className="flex justify-between text-soil-600">
+                                                <span>Location:</span>
+                                                <span className="font-medium text-soil-900">{planting.location}</span>
+                                            </div>
+                                            <div className="flex justify-between text-soil-600">
+                                                <span>Planted:</span>
+                                                <span>{formatDate(planting.plantDate)}</span>
+                                            </div>
+                                            <div className="flex justify-between text-soil-600">
+                                                <span>Harvest:</span>
+                                                <span className={cn(planting.expectedHarvest && planting.expectedHarvest <= new Date() ? "text-amber-600 font-bold" : "")}>
+                                                    {planting.expectedHarvest ? formatDate(planting.expectedHarvest) : "Unknown"}
+                                                </span>
+                                            </div>
+                                            <div className="flex justify-between text-soil-600">
+                                                <span>Quantity:</span>
+                                                <span>{planting.quantity}</span>
+                                            </div>
+                                        </div>
                                     </div>
 
-                                    <div className="mt-4 space-y-2 text-sm">
-                                        <div className="flex justify-between text-soil-600">
-                                            <span>Location:</span>
-                                            <span className="font-medium text-soil-900">{planting.location}</span>
-                                        </div>
-                                        <div className="flex justify-between text-soil-600">
-                                            <span>Planted:</span>
-                                            <span>{formatDate(planting.plantDate)}</span>
-                                        </div>
-                                        <div className="flex justify-between text-soil-600">
-                                            <span>Harvest:</span>
-                                            <span className={cn(planting.expectedHarvest && planting.expectedHarvest <= new Date() ? "text-amber-600 font-bold" : "")}>
-                                                {planting.expectedHarvest ? formatDate(planting.expectedHarvest) : "Unknown"}
-                                            </span>
-                                        </div>
-                                        <div className="flex justify-between text-soil-600">
-                                            <span>Quantity:</span>
-                                            <span>{planting.quantity}</span>
-                                        </div>
+                                    <div className="mt-5 pt-4 border-t border-soil-100 flex gap-2">
+                                        <button
+                                            className="flex-1 btn-primary text-xs py-1.5 h-auto bg-amber-600 hover:bg-amber-700 border-transparent text-white"
+                                            onClick={() => { setSelectedPlanting(planting); setIsHarvestOpen(true); }}
+                                        >
+                                            Log Harvest
+                                        </button>
                                     </div>
                                 </div>
-
-                                <div className="mt-5 pt-4 border-t border-soil-100 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                                    <button
-                                        className="flex-1 btn-primary text-xs py-1.5 h-auto bg-amber-600 hover:bg-amber-700 border-transparent text-white"
-                                        onClick={() => { setSelectedPlanting(planting); setIsHarvestOpen(true); }}
-                                    >
-                                        Log Harvest
-                                    </button>
-                                    {/* Edit/Delete placeholders */}
-                                </div>
-                            </div>
-                        ))}
-                    </div>
+                            ))}
+                        </div>
+                    )}
                 </>
             )}
 
@@ -204,7 +285,20 @@ export function GardenView({ initialCrops, initialPlantings }: GardenViewProps) 
                                     <td className="px-6 py-3">{crop.variety || "-"}</td>
                                     <td className="px-6 py-3">{crop.daysToMaturity ? `${crop.daysToMaturity} days` : "-"}</td>
                                     <td className="px-6 py-3 text-right">
-                                        <button className="text-red-600 hover:text-red-800" onClick={() => deleteCrop(crop.id)}>Delete</button>
+                                        <div className="flex justify-end gap-2">
+                                            <button
+                                                className="text-blue-600 hover:text-blue-800"
+                                                onClick={() => openEditCrop(crop)}
+                                            >
+                                                <Edit2 className="w-4 h-4" />
+                                            </button>
+                                            <button
+                                                className="text-red-600 hover:text-red-800"
+                                                onClick={() => deleteCrop(crop.id)}
+                                            >
+                                                <Trash2 className="w-4 h-4" />
+                                            </button>
+                                        </div>
                                     </td>
                                 </tr>
                             ))}
@@ -241,9 +335,19 @@ export function GardenView({ initialCrops, initialPlantings }: GardenViewProps) 
                                 <input type="number" className="input mt-1" defaultValue={1} onChange={e => setPlantingData({ ...plantingData, quantity: parseInt(e.target.value) })} />
                             </div>
                         </div>
+
+                        {companionWarning && (
+                            <div className="flex items-start gap-2 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                                <AlertTriangle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
+                                <div>
+                                    <p className="text-sm font-medium text-amber-800">Companion Planting Warning</p>
+                                    <p className="text-sm text-amber-700">{companionWarning}</p>
+                                </div>
+                            </div>
+                        )}
                     </div>
                     <DialogFooter>
-                        <button className="btn-secondary" onClick={() => setIsNewPlantingOpen(false)}>Cancel</button>
+                        <button className="btn-secondary" onClick={() => { setIsNewPlantingOpen(false); setCompanionWarning(null); }}>Cancel</button>
                         <button className="btn-primary ml-2" onClick={handleCreatePlanting} disabled={isLoading}>{isLoading ? "Saving..." : "Plant"}</button>
                     </DialogFooter>
                 </DialogContent>
@@ -270,6 +374,31 @@ export function GardenView({ initialCrops, initialPlantings }: GardenViewProps) 
                     <DialogFooter>
                         <button className="btn-secondary" onClick={() => setIsNewCropOpen(false)}>Cancel</button>
                         <button className="btn-primary ml-2" onClick={handleCreateCrop} disabled={isLoading}>{isLoading ? "Saving..." : "Save Crop"}</button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            {/* EDIT CROP DIALOG */}
+            <Dialog open={isEditCropOpen} onOpenChange={setIsEditCropOpen}>
+                <DialogContent>
+                    <DialogHeader><DialogTitle>Edit Crop</DialogTitle></DialogHeader>
+                    <div className="grid gap-4 py-4">
+                        <div>
+                            <label className="text-sm font-medium">Name</label>
+                            <input className="input mt-1" defaultValue={cropData.name} onChange={e => setCropData({ ...cropData, name: e.target.value })} />
+                        </div>
+                        <div>
+                            <label className="text-sm font-medium">Variety</label>
+                            <input className="input mt-1" defaultValue={cropData.variety} onChange={e => setCropData({ ...cropData, variety: e.target.value })} />
+                        </div>
+                        <div>
+                            <label className="text-sm font-medium">Days to Maturity</label>
+                            <input type="number" className="input mt-1" defaultValue={cropData.daysToMaturity} onChange={e => setCropData({ ...cropData, daysToMaturity: parseInt(e.target.value) })} />
+                        </div>
+                    </div>
+                    <DialogFooter>
+                        <button className="btn-secondary" onClick={() => setIsEditCropOpen(false)}>Cancel</button>
+                        <button className="btn-primary ml-2" onClick={handleUpdateCrop} disabled={isLoading}>{isLoading ? "Saving..." : "Update Crop"}</button>
                     </DialogFooter>
                 </DialogContent>
             </Dialog>

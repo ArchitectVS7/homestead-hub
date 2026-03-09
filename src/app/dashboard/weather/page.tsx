@@ -1,14 +1,22 @@
-
-import { getLatestWeather, getWeatherHistory } from "@/actions/weather";
+import { getLatestWeather, getWeatherHistory, getFrostAlert, getWeatherChartData, getWeatherStats } from "@/actions/weather";
 import { WeatherView } from "./weather-view";
 
 export default async function WeatherPage() {
-  const latest = await getLatestWeather();
-  const history = await getWeatherHistory();
+    const [latest, history, frostAlert, chartData, stats] = await Promise.all([
+        getLatestWeather(),
+        getWeatherHistory(),
+        getFrostAlert(),
+        getWeatherChartData(30),
+        getWeatherStats(30),
+    ]);
 
-  return (
-    <div className="space-y-6">
-      <WeatherView latest={latest} history={history} />
-    </div>
-  );
+    return (
+        <WeatherView
+            latest={latest}
+            history={history}
+            frostAlert={frostAlert}
+            chartData={chartData}
+            stats={stats}
+        />
+    );
 }

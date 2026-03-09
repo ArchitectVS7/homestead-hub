@@ -72,7 +72,16 @@ export const CreateCropSchema = z.object({
     name: z.string().min(1, "Name is required"),
     variety: z.string().optional(),
     daysToMaturity: z.number().int().positive().optional(),
+    plantingDepth: z.string().optional(),
+    spacing: z.string().optional(),
+    sunRequirement: z.string().optional(),
+    waterRequirement: z.string().optional(),
+    companionPlants: z.string().optional(), // JSON string array
+    incompatiblePlants: z.string().optional(), // JSON string array
+    notes: z.string().optional(),
 });
+
+export const UpdateCropSchema = CreateCropSchema.partial();
 
 export const CreatePlantingSchema = z.object({
     cropId: z.string().min(1, "Crop is required"),
@@ -99,6 +108,7 @@ export const CreateEquipmentSchema = z.object({
     serviceIntervalHours: z.number().int().positive().optional(),
     serviceIntervalDays: z.number().int().positive().optional(),
     currentHours: z.number().int().nonnegative().optional(),
+    notes: z.string().optional(),
 });
 
 export const UpdateEquipmentSchema = CreateEquipmentSchema.partial();

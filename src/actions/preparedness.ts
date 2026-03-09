@@ -95,6 +95,16 @@ export async function toggleItem(
     isCompleted: boolean
 ): Promise<{ success: boolean }> {
     try {
+        // Check if the checklist is a template
+        const item = await db.checklistItem.findUnique({
+            where: { id: itemId },
+            include: { checklist: true },
+        });
+
+        if (item?.checklist.isTemplate) {
+            return { success: false }; // Cannot complete items in templates
+        }
+
         await db.checklistItem.update({
             where: { id: itemId },
             data: { isCompleted, completedAt: isCompleted ? new Date() : null }
@@ -103,6 +113,81 @@ export async function toggleItem(
         return { success: true };
     } catch (error) {
         return { success: false };
+    }
+}
+
+/**
+ * Clone a template checklist to create a new working checklist
+ */
+export async function cloneChecklist(templateId: string, newName?: string): Promise<{ success: boolean; error?: string }> {
+    try {
+        const template = await db.checklist.findUnique({
+            where: { id: templateId },
+            include: { items: true },
+        });
+
+        if (!template || !template.isTemplate) {
+            return { success: false, error: "Not a template" };
+        }
+
+        // Create new checklist from template
+        const newChecklist = await db.checklist.create({
+            data: {
+                name: newName || `${template.name} (Copy)`,
+                description: template.description,
+                category: template.category,
+                isTemplate: false,
+                notes: template.notes,
+            },
+        });
+
+        // Clone all items
+        await Promise.all(
+            template.items.map(item =>
+                db.checklistItem.create({
+                    data: {
+                        checklistId: newChecklist.id,
+                        title: item.title,
+                        description: item.description,
+                        sortOrder: item.sortOrder,
+                        notes: item.notes,
+                        isCompleted: false,
+                    },
+                })
+            )
+        );
+
+        revalidatePath("/dashboard/preparedness");
+        return { success: true };
+    } catch (error) {
+        console.error("Failed to clone checklist:", error);
+        return { success: false, error: "Failed to clone checklist" };
+    }
+}
+
+/**
+ * Reorder checklist items
+ */
+export async function reorderChecklistItems(
+    checklistId: string,
+    itemIds: string[]
+): Promise<{ success: boolean; error?: string }> {
+    try {
+        // Update sortOrder for each item based on new order
+        await Promise.all(
+            itemIds.map((id, index) =>
+                db.checklistItem.update({
+                    where: { id },
+                    data: { sortOrder: index },
+                })
+            )
+        );
+
+        revalidatePath("/dashboard/preparedness");
+        return { success: true };
+    } catch (error) {
+        console.error("Failed to reorder items:", error);
+        return { success: false, error: "Failed to reorder items" };
     }
 }
 

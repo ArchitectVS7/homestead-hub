@@ -1,14 +1,20 @@
-
-import { getResourceSummary, getResourceHistory } from "@/actions/resources";
+import { getResourceSummary, getResourceHistory, getResourceChartData, getLowStockAlerts } from "@/actions/resources";
 import { ResourcesView } from "./resources-view";
 
 export default async function ResourcesPage() {
-  const summary = await getResourceSummary();
-  const history = await getResourceHistory();
+    const [summary, history, chartData, lowStockAlerts] = await Promise.all([
+        getResourceSummary(),
+        getResourceHistory(),
+        getResourceChartData(30),
+        getLowStockAlerts(),
+    ]);
 
-  return (
-    <div className="space-y-6">
-      <ResourcesView initialSummary={summary} initialHistory={history} />
-    </div>
-  );
+    return (
+        <ResourcesView
+            initialSummary={summary}
+            initialHistory={history}
+            chartData={chartData}
+            lowStockAlerts={lowStockAlerts}
+        />
+    );
 }

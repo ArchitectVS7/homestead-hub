@@ -33,6 +33,21 @@ The system runs on commodity hardware (Raspberry Pi, old laptop, home server), r
 
 ---
 
+## Non-Goals
+
+The following are explicitly out of scope for v1 and should not influence architecture or implementation decisions:
+
+- **Multi-user / multi-tenancy** — HomesteadHub is single-user by design. No RBAC, shared accounts, or household collaboration features in v1.
+- **Cloud hosting or SaaS mode** — the system is self-hosted only. No managed cloud offering, no Vercel/Railway deploy path, no subscription tiers.
+- **Mobile native apps** — the web app is responsive but there are no React Native, iOS, or Android targets. PWA installability is acceptable but not required.
+- **Real-time collaboration or sync between devices** — offline-first means one device writes at a time; multi-device conflict resolution is out of scope.
+- **Marketplace or third-party integrations** — no weather API subscriptions, no seed/supply vendor integrations, no payment processing.
+- **AI / ML features** — no yield predictions, automated planting calendars, or LLM-assisted planning in v1. Data entry is manual.
+- **Reporting / export beyond CSV** — no PDF reports, no chart exports, no accounting integrations.
+- **Public-facing pages** — the app is entirely behind the PIN gate; no landing page, no unauthenticated views.
+
+---
+
 ## Overview
 
 HomesteadHub is a **single-user, self-hosted** farm and homestead management system built for the engineer-farmer-survivalist. It is reverse-engineered from the codebase as of 2026-02-05.
@@ -182,7 +197,170 @@ Checklist ──< ChecklistItem
 |---|---|---|
 | id | String (cuid) | PK |
 | name | String | Required |
-| category | String | Indexed. Values: tractor, mower, tiller, chainsaw, generator, pump,
+| category | String | Indexed. Values: tractor, mower, tiller, chainsaw, generator, pump, vehicle, tool, other |
+| make | String? | |
+| model | String? | |
+| serialNumber | String? | |
+| purchaseDate | DateTime? | |
+| purchasePrice | Float? | |
+| location | String? | |
+| status | String | Indexed. Default "operational". Values: operational, needs-service, out-of-service |
+| serviceIntervalHours | Int? | |
+| serviceIntervalDays | Int? | |
+| currentHours | Float? | |
+| lastServiceDate | DateTime? | |
+| lastServiceHours | Float? | |
+| notes | String? | |
+| maintenanceRecords | MaintenanceRecord[] | One-to-many |
+
+#### MaintenanceRecord
+
+| Field | Type | Notes |
+|---|---|---|
+| id | String (cuid) | PK |
+| equipmentId | String | FK → Equipment. Indexed. Cascade delete. |
+| date | DateTime | Indexed |
+| type | String | oil-change, repair, inspection, etc. |
+| description | String | Required |
+| hoursAtService | Float? | |
+| cost | Float? | |
+| parts | String[] | Postgres array |
+| performedBy | String? | |
+| notes | String? | |
+
+#### Animal
+
+| Field | Type | Notes |
+|---|---|---|
+| id | String (cuid) | PK |
+| name | String? | |
+| tag | String? | Ear tag, leg band, etc. |
+| type | String | Indexed. Values: chicken, duck, goose, turkey, cow, pig, goat, sheep, horse, rabbit, bee, other |
+| breed | String? | |
+| sex | String? | male, female, unknown |
+| birthDate | DateTime? | |
+| acquiredDate | DateTime? | |
+| status | String | Indexed. Default "active". Values: active, sold, deceased, processed |
+| parentId | String? | Self-referential FK for lineage |
+| notes | String? | |
+| healthRecords | HealthRecord[] | One-to-many |
+| productionLogs | ProductionLog[] | One-to-many |
+| offspring | Animal[] | Self-relation (AnimalLineage) |
+
+#### HealthRecord
+
+| Field | Type | Notes |
+|---|---|---|
+| id | String (cuid) | PK |
+| animalId | String | FK → Animal. Indexed. Cascade delete. |
+| date | DateTime | Indexed |
+| type | String | vaccination, medication, vet-visit, observation |
+| description | String | Required |
+| medication | String? | |
+| dosage | String? | |
+| cost | Float? | |
+| performedBy | String? | |
+| nextDue | DateTime? | Drives reminders |
+| notes | String? | |
+
+#### ProductionLog
+
+| Field | Type | Notes |
+|---|---|---|
+| id | String (cuid) | PK |
+| animalId | String | FK → Animal. Indexed. Cascade delete. |
+| date | DateTime | Indexed |
+| type | String | eggs, milk, wool, etc. |
+| quantity | Float | |
+| unit | String | |
+| quality | String? | Grade A, B, etc. |
+| notes | String? | |
+
+#### WeatherSnapshot
+
+| Field | Type | Notes |
+|---|---|---|
+| id | String (cuid) | PK |
+| timestamp | DateTime | Indexed |
+| temperature | Float | Fahrenheit |
+| feelsLike | Float? | |
+| humidity | Int? | Percentage |
+| windSpeed | Float? | mph |
+| windDirection | String? | |
+| precipitation | Float? | Inches |
+| conditions | String? | clear, cloudy, rain, snow, etc. |
+| pressure | Float? | hPa |
+| uvIndex | Int? | |
+| source | String? | manual, openweather, etc. |
+| notes | String? | |
+
+#### Task
+
+| Field | Type | Notes |
+|---|---|---|
+| id | String (cuid) | PK |
+| title | String | Required |
+| description | String? | |
+| category | String? | Indexed. Values: garden, livestock, equipment, storage, general |
+| priority | String | Default "medium". Values: low, medium, high, urgent |
+| recurrenceRule | String? | iCal RRULE format (e.g. `FREQ=WEEKLY;INTERVAL=1`) |
+| nextDue | DateTime? | Indexed. Computed from RRULE + lastCompleted |
+| lastCompleted | DateTime? | |
+| estimatedMinutes | Int? | |
+| assignedTo | String? | |
+| notes | String? | |
+| isActive | Boolean | Default true. Indexed. |
+| completions | TaskCompletion[] | One-to-many |
+
+#### TaskCompletion
+
+| Field | Type | Notes |
+|---|---|---|
+| id | String (cuid) | PK |
+| taskId | String | FK → Task. Indexed. Cascade delete. |
+| completedAt | DateTime | Default now(). Indexed. |
+| completedBy | String? | |
+| duration | Int? | Actual minutes taken |
+| notes | String? | |
+
+#### ResourceLog
+
+| Field | Type | Notes |
+|---|---|---|
+| id | String (cuid) | PK |
+| type | String | Indexed. Values: water, fuel, seeds, feed, other |
+| action | String | usage, purchase, adjustment |
+| quantity | Float | |
+| unit | String | gallons, lbs, bags, etc. |
+| date | DateTime | Default now(). Indexed. |
+| cost | Float? | |
+| vendor | String? | |
+| notes | String? | |
+
+#### Checklist
+
+| Field | Type | Notes |
+|---|---|---|
+| id | String (cuid) | PK |
+| name | String | Required |
+| description | String? | |
+| category | String? | Indexed. Values: evacuation, shelter-in-place, power-outage, etc. |
+| isTemplate | Boolean | Default false. Templates are cloned, not used directly. |
+| notes | String? | |
+| items | ChecklistItem[] | One-to-many |
+
+#### ChecklistItem
+
+| Field | Type | Notes |
+|---|---|---|
+| id | String (cuid) | PK |
+| checklistId | String | FK → Checklist. Indexed. Cascade delete. |
+| title | String | Required |
+| description | String? | |
+| isCompleted | Boolean | Default false |
+| completedAt | DateTime? | |
+| sortOrder | Int | Default 0. For drag-to-reorder. |
+| notes | String? | |
 
 ## Requirements
 
@@ -945,6 +1123,159 @@ All data access is mediated through Next.js Server Actions (see Architecture sec
 ### Input Validation
 
 - All server actions validate input with Zod schemas before any database operation.
+
+### Threat Model and Data Protection
+
+HomesteadHub runs on a local network (LAN) or private server — it is not a public-facing SaaS product. The threat model is accordingly scoped:
+
+| Threat | Mitigation |
+|--------|-----------|
+| Casual LAN access by household members | PIN gate with bcrypt-hashed PIN; HTTP-only session cookie with configurable TTL (default 7 days) |
+| Brute-force PIN guessing | PIN attempt rate-limiting: lock for 15 minutes after 10 failed attempts within 5 minutes |
+| Session theft (stolen cookie) | Session cookie is HTTP-only and Secure; "Lock" button clears it on demand |
+| SQL injection | Prisma parameterised queries on all DB calls |
+| XSS | React JSX escaping; no `dangerouslySetInnerHTML` usage |
+| Exposed secrets in exported data | JSON export includes only application data — no PIN hash, no session tokens |
+| External network exposure | Not a product goal; users who expose the port publicly should add a reverse proxy with TLS (documented in README) |
+
+**Data at rest:** PostgreSQL data directory is on the host filesystem. Users are responsible for disk encryption on self-hosted hardware (e.g., LUKS on Linux, FileVault on macOS). The README recommends enabling full-disk encryption and includes a backup script guide.
+
+**Backup strategy:** The Settings page provides a one-click JSON export of all application data. The README documents a `pg_dump` command for PostgreSQL-level backups. Users should schedule automated backups using cron or a backup tool of their choice; no managed backup is provided.
+
+---
+
+## Deployment and Operational Requirements
+
+### Hardware Requirements
+
+| Hardware | Minimum | Recommended |
+|----------|---------|-------------|
+| CPU | ARMv7 (Raspberry Pi 3) | ARM64 or x86_64 (Raspberry Pi 4 / any old laptop) |
+| RAM | 512 MB | 1 GB+ |
+| Storage | 4 GB free | 16 GB+ (more for image attachments if added later) |
+| Network | LAN connection | LAN + optional port forwarding for remote access |
+
+### PostgreSQL Setup
+
+HomesteadHub requires a PostgreSQL 14+ instance. Two setup paths are documented:
+
+1. **Docker Compose (recommended):** `docker compose up` starts both the Next.js app and a PostgreSQL 14 container. Data is persisted in a named Docker volume (`homestead_db`). No separate PostgreSQL installation required.
+2. **External PostgreSQL:** Set `DATABASE_URL` environment variable to an existing PostgreSQL instance. Run `npx prisma migrate deploy` to apply migrations. Suitable for users already running PostgreSQL on their homestead server.
+
+### Migrations
+
+- All schema changes are managed via Prisma Migrations (`prisma/migrations/`).
+- On Docker Compose startup, migrations are applied automatically via `npx prisma migrate deploy` in the app container entrypoint.
+- Manual migration: `npx prisma migrate deploy` (production) or `npx prisma migrate dev` (development — creates new migration files).
+
+### Backup Strategy
+
+| Method | Command | Frequency |
+|--------|---------|-----------|
+| Application data export | Settings → Export JSON | As needed |
+| PostgreSQL dump (Docker) | `docker exec homestead-db pg_dump -U homestead homestead > backup.sql` | Recommended: daily via cron |
+| Docker volume backup | `docker run --rm -v homestead_db:/data -v $(pwd):/backup alpine tar czf /backup/db-backup.tar.gz /data` | Weekly |
+
+---
+
+## API Contract (Server Actions)
+
+All mutations are Next.js Server Actions. Key signatures:
+
+```typescript
+// Storage
+createStorageItem(input: CreateStorageItemInput): Promise<StorageItem>
+updateStorageItem(id: string, input: Partial<CreateStorageItemInput>): Promise<StorageItem>
+deleteStorageItem(id: string): Promise<void>
+getStorageItems(filter?: StorageFilter): Promise<StorageItem[]>
+
+// Garden
+createCrop(input: CreateCropInput): Promise<Crop>
+createPlanting(input: CreatePlantingInput): Promise<Planting>
+logHarvest(id: string, input: HarvestInput): Promise<Planting>
+
+// Tasks
+createTask(input: CreateTaskInput): Promise<Task>
+completeTask(id: string, input: CompletionInput): Promise<TaskCompletion>
+// completeTask also recalculates nextDue from RRULE and updates Task.lastCompleted
+
+// Equipment
+logMaintenance(equipmentId: string, input: MaintenanceInput): Promise<MaintenanceRecord>
+// logMaintenance also updates Equipment.lastServiceDate and lastServiceHours
+
+// Settings
+getSettings(): Promise<Settings>
+updateSettings(input: Partial<SettingsInput>): Promise<Settings>
+exportAllData(): Promise<ExportPayload>  // Full JSON dump of all 16 models
+```
+
+All inputs are validated with Zod schemas before the Prisma call. Invalid inputs throw a typed `ValidationError` that the client surfaces as an inline form error. Server action errors never expose stack traces to the client.
+
+---
+
+## User Personas and Day-to-Day Workflows
+
+### Persona: Sam (48, small-scale homesteader, minimal tech background)
+
+Sam raises chickens and goats, grows vegetables in raised beds, and keeps a generator for power outages. Sam set up HomesteadHub by running `docker compose up` following the README — it took 20 minutes. Sam does not use the command line day-to-day.
+
+**Morning routine:**
+1. Opens HomesteadHub on a tablet browser over LAN — enters PIN, lands on Dashboard.
+2. Dashboard alert: "3 items expiring within 7 days" — taps to see the filtered storage list, marks two items for use this week.
+3. Checks Tasks: "Water raised beds" is overdue — taps to complete, notes "skipped due to rain."
+4. Checks Livestock: one of the goats has a vet visit due next week — adds a reminder note to the health record.
+
+**Weekly routine:**
+1. Logs egg and milk production for the week using the Livestock production log.
+2. Checks the Garden calendar — sees that the tomato transplant window is coming up in 5 days.
+3. Logs tractor hours after mowing — Equipment module updates service-due status automatically.
+
+**Seasonal use:**
+1. Before winter: opens Emergency Preparedness, clones the "72-Hour Kit" template, and works through checking off items as they're stocked.
+2. Before planting season: adds new crop definitions to the Crop Library with companion planting notes from last year.
+
+Sam never needs the command line after setup. All day-to-day workflows are form submissions and list views.
+
+---
+
+## Acceptance Criteria and MVP Completion
+
+### MVP Definition
+
+The MVP is complete when all P0 and P1 requirements have passing acceptance tests and the following end-to-end flows work on a Raspberry Pi 4 via `docker compose up`:
+
+| Flow | Criterion |
+|------|-----------|
+| PIN setup and login | New install → set PIN → login → access dashboard → lock → cannot access without PIN |
+| Storage CRUD + expiration alert | Add 3 items with expiration dates → alert banner shows correct count → color-coding correct |
+| Garden planting + harvest | Add crop → create planting → log harvest → calendar shows planting on correct dates |
+| Equipment maintenance | Add equipment → log maintenance → service-due status updates → alert banner reflects count |
+| Livestock records | Add animal → log health record with nextDue → animal appears in health reminders |
+| Task completion + recurrence | Create weekly recurring task → complete → nextDue advances by 7 days |
+| Offline write queue | Disconnect network → create storage item → reconnect → item syncs to server |
+| Data export | Settings → Export → valid JSON file downloads with data from all active modules |
+
+### KPIs (Self-hosted, open source)
+
+| KPI | Target | Measurement |
+|-----|--------|-------------|
+| GitHub stars (6 months) | 500+ | GitHub API |
+| Docker Hub pulls (6 months) | 1,000+ | Docker Hub stats |
+| README setup success rate | ≥ 90% | Community survey / issue tracker ratio |
+| Average modules in active use per install | ≥ 4 of 9 | Community survey |
+| Lighthouse accessibility score | ≥ 90 | Automated CI check |
+
+---
+
+## Security and Compliance
+
+### PIN Gate (F-01)
+
+- Single 4–6 digit PIN stored as a bcrypt hash.
+- PIN verified server-side via a Server Action; session token issued on success.
+- All `/dashboard/*` routes protected; unauthenticated requests redirected to `/`.
+- No multi-user authentication — single-household access model.
+- PIN change requires the current PIN.
 
 ---
 

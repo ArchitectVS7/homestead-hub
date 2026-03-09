@@ -9,13 +9,16 @@ import { formatDate } from "@/lib/utils";
 import { createAnimal, Animal } from "@/actions/livestock";
 import { CreateAnimalSchema } from "@/lib/validations";
 import { z } from "zod";
+import { ProductionChart, ProductionByTypeChart } from "./production-chart";
 
 interface LivestockViewProps {
     initialAnimals: Animal[];
     productionStats: Record<string, number>;
+    chartData: Array<Record<string, any>>;
+    productionByType: Array<{ name: string; value: number; unit: string }>;
 }
 
-export function LivestockView({ initialAnimals, productionStats }: LivestockViewProps) {
+export function LivestockView({ initialAnimals, productionStats, chartData, productionByType }: LivestockViewProps) {
     const [isAddOpen, setIsAddOpen] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
 
@@ -64,8 +67,14 @@ export function LivestockView({ initialAnimals, productionStats }: LivestockView
                     </div>
                 ))}
                 {Object.keys(productionStats).length === 0 && (
-                    <div className="col-span-2 text-sm text-soil-500 bg-soil-50 p-4 rounded-xl">No production logs in last 30 days.</div>
+                    <div className="col-span-full text-sm text-soil-500 bg-soil-50 p-4 rounded-xl">No production logs in last 30 days.</div>
                 )}
+            </div>
+
+            {/* Production Charts */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <ProductionChart data={chartData} title="Production Trends (30 Days)" />
+                <ProductionByTypeChart data={productionByType} title="Production by Type" />
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
