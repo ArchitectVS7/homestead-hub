@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Plus, Wrench, AlertTriangle, CheckCircle2, XCircle, MoreHorizontal, History, Eye } from "lucide-react";
+import { Plus, Wrench, AlertTriangle, CheckCircle2, XCircle, MoreHorizontal, History, Eye, Download } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { formatDate, cn } from "@/lib/utils";
@@ -19,6 +19,25 @@ export function EquipmentView({ initialEquipment, dueCount }: EquipmentViewProps
     const [isAddOpen, setIsAddOpen] = useState(false);
     const [isLogOpen, setIsLogOpen] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
+    const [isDownloading, setIsDownloading] = useState(false);
+
+    const downloadCsv = async () => {
+        setIsDownloading(true);
+        try {
+            const res = await fetch("/api/export?module=equipment");
+            const blob = await res.blob();
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = "equipment.csv";
+            a.click();
+            URL.revokeObjectURL(url);
+        } catch (e) {
+            console.error("CSV export failed", e);
+        } finally {
+            setIsDownloading(false);
+        }
+    };
 
     const [selectedEquipment, setSelectedEquipment] = useState<EquipmentWithMaintenance | null>(null);
 
@@ -84,9 +103,19 @@ export function EquipmentView({ initialEquipment, dueCount }: EquipmentViewProps
                     </h1>
                     <p className="text-soil-600 mt-1">Manage assets and maintenance schedules</p>
                 </div>
-                <button className="btn-primary flex items-center gap-2" onClick={() => setIsAddOpen(true)}>
-                    <Plus className="w-4 h-4" /> Add Equipment
-                </button>
+                <div className="flex gap-2">
+                    <button
+                        onClick={downloadCsv}
+                        disabled={isDownloading}
+                        className="btn-secondary flex items-center gap-2 disabled:opacity-50"
+                    >
+                        <Download className="w-4 h-4" />
+                        {isDownloading ? "Exporting…" : "Export CSV"}
+                    </button>
+                    <button className="btn-primary flex items-center gap-2" onClick={() => setIsAddOpen(true)}>
+                        <Plus className="w-4 h-4" /> Add Equipment
+                    </button>
+                </div>
             </div>
 
             {dueCount > 0 && (

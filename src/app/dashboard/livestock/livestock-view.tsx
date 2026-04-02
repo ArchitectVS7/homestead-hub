@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Plus, Egg, Activity, HeartPulse } from "lucide-react";
+import { Plus, Egg, Activity, HeartPulse, Download } from "lucide-react";
 import Link from "next/link";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -21,6 +21,25 @@ interface LivestockViewProps {
 export function LivestockView({ initialAnimals, productionStats, chartData, productionByType }: LivestockViewProps) {
     const [isAddOpen, setIsAddOpen] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
+    const [isDownloading, setIsDownloading] = useState(false);
+
+    const downloadCsv = async () => {
+        setIsDownloading(true);
+        try {
+            const res = await fetch("/api/export?module=livestock");
+            const blob = await res.blob();
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = "livestock.csv";
+            a.click();
+            URL.revokeObjectURL(url);
+        } catch (e) {
+            console.error("CSV export failed", e);
+        } finally {
+            setIsDownloading(false);
+        }
+    };
 
     const [animalData, setAnimalData] = useState<Partial<z.infer<typeof CreateAnimalSchema>>>({ sex: "female", status: "active", isNeutered: false });
 
@@ -52,9 +71,19 @@ export function LivestockView({ initialAnimals, productionStats, chartData, prod
                     </h1>
                     <p className="text-soil-600 mt-1">Manage animals, health records, and production</p>
                 </div>
-                <button className="btn-primary flex items-center gap-2" onClick={() => setIsAddOpen(true)}>
-                    <Plus className="w-4 h-4" /> Add Animal
-                </button>
+                <div className="flex gap-2">
+                    <button
+                        onClick={downloadCsv}
+                        disabled={isDownloading}
+                        className="btn-secondary flex items-center gap-2 disabled:opacity-50"
+                    >
+                        <Download className="w-4 h-4" />
+                        {isDownloading ? "Exporting…" : "Export CSV"}
+                    </button>
+                    <button className="btn-primary flex items-center gap-2" onClick={() => setIsAddOpen(true)}>
+                        <Plus className="w-4 h-4" /> Add Animal
+                    </button>
+                </div>
             </div>
 
             {/* Production Stats Cards */}

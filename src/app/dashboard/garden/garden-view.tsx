@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Plus, Sprout, Calendar as CalIcon, Grid, List, Shovel, Edit2, Trash2, AlertTriangle } from "lucide-react";
+import { Plus, Sprout, Calendar as CalIcon, Grid, List, Shovel, Edit2, Trash2, AlertTriangle, Download } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn, formatDate } from "@/lib/utils";
@@ -38,7 +38,26 @@ export function GardenView({ initialCrops, initialPlantings }: GardenViewProps) 
     const [isEditCropOpen, setIsEditCropOpen] = useState(false);
     const [isHarvestOpen, setIsHarvestOpen] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
+    const [isDownloading, setIsDownloading] = useState(false);
     const [companionWarning, setCompanionWarning] = useState<string | null>(null);
+
+    const downloadCsv = async () => {
+        setIsDownloading(true);
+        try {
+            const res = await fetch("/api/export?module=garden");
+            const blob = await res.blob();
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = "garden-plantings.csv";
+            a.click();
+            URL.revokeObjectURL(url);
+        } catch (e) {
+            console.error("CSV export failed", e);
+        } finally {
+            setIsDownloading(false);
+        }
+    };
 
     const [selectedPlanting, setSelectedPlanting] = useState<PlantingWithCrop | null>(null);
     const [selectedCrop, setSelectedCrop] = useState<Crop | null>(null);
@@ -154,6 +173,14 @@ export function GardenView({ initialCrops, initialPlantings }: GardenViewProps) 
                     <p className="text-soil-600 mt-1">Track crops, plantings, and harvests</p>
                 </div>
                 <div className="flex gap-2">
+                    <button
+                        onClick={downloadCsv}
+                        disabled={isDownloading}
+                        className="btn-secondary flex items-center gap-2 disabled:opacity-50"
+                    >
+                        <Download className="w-4 h-4" />
+                        {isDownloading ? "Exporting…" : "Export CSV"}
+                    </button>
                     {activeTab === "garden" ? (
                         <button className="btn-primary flex items-center gap-2" onClick={() => setIsNewPlantingOpen(true)}>
                             <Shovel className="w-4 h-4" /> New Planting

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Plus, Search, Filter, AlertTriangle, Edit, Trash2 } from "lucide-react";
+import { Plus, Search, Filter, AlertTriangle, Edit, Trash2, Download } from "lucide-react";
 import { StorageItem, createStorageItem, updateStorageItem, deleteStorageItem } from "@/actions/storage";
 import { DataTable } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogTrigger } from "@/components/ui/dialog";
@@ -29,6 +29,25 @@ export function StorageView({ initialItems, expiringItems }: StorageViewProps) {
     const [isEditOpen, setIsEditOpen] = useState(false);
     const [currentItem, setCurrentItem] = useState<StorageItem | null>(null);
     const [isLoading, setIsLoading] = useState(false);
+    const [isDownloading, setIsDownloading] = useState(false);
+
+    const downloadCsv = async () => {
+        setIsDownloading(true);
+        try {
+            const res = await fetch("/api/export?module=storage");
+            const blob = await res.blob();
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = "storage-inventory.csv";
+            a.click();
+            URL.revokeObjectURL(url);
+        } catch (e) {
+            console.error("CSV export failed", e);
+        } finally {
+            setIsDownloading(false);
+        }
+    };
 
     // Form states
     const [formData, setFormData] = useState<Partial<z.infer<typeof CreateStorageItemSchema>>>({});
@@ -185,7 +204,16 @@ export function StorageView({ initialItems, expiringItems }: StorageViewProps) {
                     </p>
                 </div>
 
-                <Dialog open={isAddOpen} onOpenChange={(open) => { setIsAddOpen(open); if (!open) resetForm(); }}>
+                <div className="flex gap-2">
+                    <button
+                        onClick={downloadCsv}
+                        disabled={isDownloading}
+                        className="inline-flex items-center gap-2 border border-soil-300 text-soil-700 px-4 py-2.5 rounded-lg hover:bg-soil-50 transition font-medium disabled:opacity-50"
+                    >
+                        <Download className="w-4 h-4" />
+                        {isDownloading ? "Exporting…" : "Export CSV"}
+                    </button>
+                    <Dialog open={isAddOpen} onOpenChange={(open) => { setIsAddOpen(open); if (!open) resetForm(); }}>
                     <DialogTrigger asChild>
                         <button className="inline-flex items-center gap-2 bg-forest-600 text-white px-4 py-2.5 rounded-lg hover:bg-forest-700 transition font-medium">
                             <Plus className="w-5 h-5" />
@@ -306,6 +334,7 @@ export function StorageView({ initialItems, expiringItems }: StorageViewProps) {
                         </DialogFooter>
                     </DialogContent>
                 </Dialog>
+                </div>
             </div>
 
             {/* Edit Dialog */}

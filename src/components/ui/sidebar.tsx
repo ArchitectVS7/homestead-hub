@@ -23,6 +23,7 @@ import {
   Lock,
 } from "lucide-react";
 import { SyncIndicator } from "@/components/ui/sync-indicator";
+import { SyncConflictBanner } from "@/components/ui/sync-conflict-banner";
 
 const navigation = [
   { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
@@ -205,6 +206,9 @@ export function Sidebar({ unreadCount = 0 }: { unreadCount?: number }) {
 
         {/* User area with Lock button */}
         <div className="px-3 py-4 border-t border-soil-800 space-y-2">
+
+          {/* Sync conflict notifications */}
+          {!collapsed && <SyncConflictBanner />}
 
           {/* Sync Indicator */}
           {!collapsed && (

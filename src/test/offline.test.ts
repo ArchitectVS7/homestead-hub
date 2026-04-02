@@ -2,27 +2,29 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { ACTION_REGISTRY, getAction } from '@/lib/action-registry';
 import { syncQueue, queueMutation } from '@/lib/offline';
 
-// Mock mocks
-const mockStore = {
-    put: vi.fn(),
-    delete: vi.fn(),
+// The new syncQueue() batch-reads the entire queue first:
+//   db.transaction(...).store.getAllKeys()
+//   db.transaction(...).store.getAll()
+//   tx.done
+// Then deletes conflicts, then executes, then calls db.delete() per item.
+const testEntry = { action: 'test.action', data: { foo: 'bar' }, timestamp: 123 };
+const testKey = 'key-123';
+
+const mockTxStore = {
+    getAllKeys: vi.fn().mockResolvedValue([testKey]),
+    getAll: vi.fn().mockResolvedValue([testEntry]),
+    delete: vi.fn().mockResolvedValue(undefined),
 };
 
-const mockCursor = {
-    value: { action: 'test.action', data: { foo: 'bar' }, timestamp: 123 },
-    delete: vi.fn(),
-    continue: vi.fn().mockResolvedValue(null),
-};
-
-const mockTransaction = {
-    store: {
-        openCursor: vi.fn().mockResolvedValue(mockCursor),
-    },
+const mockTx = {
+    store: mockTxStore,
+    done: Promise.resolve(),
 };
 
 const mockDb = {
     put: vi.fn(),
-    transaction: vi.fn().mockReturnValue(mockTransaction),
+    delete: vi.fn().mockResolvedValue(undefined),
+    transaction: vi.fn().mockReturnValue(mockTx),
 };
 
 vi.mock('idb', () => ({
@@ -41,6 +43,12 @@ vi.mock('@/lib/action-registry', async (importOriginal) => {
 describe('Offline Logic', () => {
     beforeEach(() => {
         vi.clearAllMocks();
+        // Re-apply defaults after clearAllMocks
+        mockTxStore.getAllKeys.mockResolvedValue([testKey]);
+        mockTxStore.getAll.mockResolvedValue([testEntry]);
+        mockTxStore.delete.mockResolvedValue(undefined);
+        mockDb.delete.mockResolvedValue(undefined);
+        mockDb.transaction.mockReturnValue(mockTx);
     });
 
     it('should queue mutations with timestamps', async () => {
@@ -61,15 +69,23 @@ describe('Offline Logic', () => {
         const mockAction = vi.fn().mockResolvedValue({ success: true });
         (getAction as any).mockReturnValue(mockAction);
 
-        // Re-setup mock cursor for this test to ensure it runs
-        mockCursor.continue.mockResolvedValueOnce(null);
-        mockTransaction.store.openCursor.mockResolvedValueOnce(mockCursor);
-
-        await syncQueue();
+        const result = await syncQueue();
 
         expect(getAction).toHaveBeenCalledWith('test.action');
         expect(mockAction).toHaveBeenCalledWith({ foo: 'bar' });
-        expect(mockCursor.delete).toHaveBeenCalled();
+        // Successful action → deleted from queue
+        expect(mockDb.delete).toHaveBeenCalledWith('mutationQueue', testKey);
+        expect(result.processed).toBe(1);
+        expect(result.conflicts).toHaveLength(0);
+    });
+
+    it('returns zero processed for an empty queue', async () => {
+        mockTxStore.getAllKeys.mockResolvedValue([]);
+        mockTxStore.getAll.mockResolvedValue([]);
+
+        const result = await syncQueue();
+        expect(result.processed).toBe(0);
+        expect(result.conflicts).toHaveLength(0);
     });
 
     it('should have a comprehensive action registry', () => {
