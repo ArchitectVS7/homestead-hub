@@ -82,6 +82,11 @@ export async function exportAllData(): Promise<{ success: boolean; data?: any; e
             db.settings.findFirst(),
         ]);
 
+        // Remove sensitive fields from settings
+        const sanitizedSettings = settings
+            ? { ...settings, hashedPIN: undefined, weatherAPIKey: undefined }
+            : settings;
+
         const exportData = {
             version: "1.0",
             exportedAt: new Date().toISOString(),
@@ -101,7 +106,7 @@ export async function exportAllData(): Promise<{ success: boolean; data?: any; e
                 checklists,
                 checklistItems,
                 notifications,
-                settings,
+                settings: sanitizedSettings,
             },
         };
 
