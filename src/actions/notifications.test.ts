@@ -52,15 +52,17 @@ describe('Notification Actions', () => {
             (livestockActions.getHealthReminders as any).mockResolvedValue([]);
 
             // Mock no existing notification
-            dbMock.notification.findFirst.mockResolvedValue(null);
+            dbMock.notification.findMany.mockResolvedValue([]);
 
             await generateNotifications();
 
-            expect(dbMock.notification.create).toHaveBeenCalledWith(expect.objectContaining({
-                data: expect.objectContaining({
-                    title: 'Item Expiring Soon',
-                    sourceId: 'item1'
-                })
+            expect(dbMock.notification.createMany).toHaveBeenCalledWith(expect.objectContaining({
+                data: expect.arrayContaining([
+                    expect.objectContaining({
+                        title: 'Item Expiring Soon',
+                        sourceId: 'item1'
+                    })
+                ])
             }));
         });
 
@@ -73,11 +75,11 @@ describe('Notification Actions', () => {
             (livestockActions.getHealthReminders as any).mockResolvedValue([]);
 
             // Mock EXISTING notification
-            dbMock.notification.findFirst.mockResolvedValue({ id: 'notif1', isRead: false } as any);
+            dbMock.notification.findMany.mockResolvedValue([{ source: 'storage', sourceId: 'item1' }] as any);
 
             await generateNotifications();
 
-            expect(dbMock.notification.create).not.toHaveBeenCalled();
+            expect(dbMock.notification.createMany).not.toHaveBeenCalled();
         });
     });
 });
