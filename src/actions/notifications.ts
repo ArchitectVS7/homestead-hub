@@ -81,10 +81,18 @@ export async function deleteNotification(id: string): Promise<void> {
 export async function generateNotifications(): Promise<void> {
     console.log("Generating notifications...");
     try {
+        const notificationsToCreate: {
+            type: string;
+            title: string;
+            description: string;
+            source: string;
+            sourceId: string;
+        }[] = [];
+
         // 1. Storage: Expiring Items
         const expiringItems = await getExpiringItems(7); // < 7 days
         for (const item of expiringItems) {
-            await createNotificationIfNotExists({
+            notificationsToCreate.push({
                 type: 'warning',
                 title: 'Item Expiring Soon',
                 description: `${item.name} is expiring on ${item.expirationDate ? new Date(item.expirationDate).toLocaleDateString() : 'soon'}`,
@@ -96,7 +104,7 @@ export async function generateNotifications(): Promise<void> {
         // 2. Equipment: Service Due
         const serviceDue = await getServiceDueEquipment();
         for (const eq of serviceDue) {
-            await createNotificationIfNotExists({
+            notificationsToCreate.push({
                 type: 'alert',
                 title: 'Equipment Service Due',
                 description: `${eq.name} needs service.`,
@@ -108,7 +116,7 @@ export async function generateNotifications(): Promise<void> {
         // 3. Tasks: Overdue Tasks
         const taskSections = await getTaskSections();
         for (const task of taskSections.overdue) {
-            await createNotificationIfNotExists({
+            notificationsToCreate.push({
                 type: 'alert',
                 title: 'Task Overdue',
                 description: `${task.title} is overdue.`,
@@ -120,7 +128,7 @@ export async function generateNotifications(): Promise<void> {
         // 4. Weather: Frost Alerts
         const frostAlert = await getFrostAlert();
         if (frostAlert?.isFrost) {
-            await createNotificationIfNotExists({
+            notificationsToCreate.push({
                 type: 'warning',
                 title: 'Frost Alert',
                 description: `Temperature dropped to ${frostAlert.temperature}°F. Protect plants and animals.`,
@@ -132,7 +140,7 @@ export async function generateNotifications(): Promise<void> {
         // 5. Livestock: Health Reminders
         const healthReminders = await getHealthReminders();
         for (const record of healthReminders) {
-            await createNotificationIfNotExists({
+            notificationsToCreate.push({
                 type: 'info',
                 title: 'Health Reminder',
                 description: `Upcoming ${record.type} for ${record.title.replace('Health Reminder: ', '')}.`,
@@ -141,33 +149,58 @@ export async function generateNotifications(): Promise<void> {
             });
         }
 
+        await createNotificationsIfNotExistsBatch(notificationsToCreate);
+
     } catch (error) {
         console.error("Error generating notifications:", error);
     }
 }
 
-async function createNotificationIfNotExists(data: {
+async function createNotificationsIfNotExistsBatch(notifications: {
     type: string;
     title: string;
     description: string;
     source: string;
     sourceId: string;
-}) {
-    // Basic deduplication: look for unread notifications for same sourceId
-    const existing = await db.notification.findFirst({
+}[]) {
+    if (notifications.length === 0) return;
+
+    // 1. Get all existing unread notifications for the relevant sources and sourceIds
+    const existing = await db.notification.findMany({
         where: {
-            sourceId: data.sourceId,
-            source: data.source,
-            isRead: false
+            OR: notifications.map(n => ({
+                source: n.source,
+                sourceId: n.sourceId,
+                isRead: false
+            }))
+        },
+        select: {
+            source: true,
+            sourceId: true
         }
     });
 
-    if (!existing) {
-        await db.notification.create({
-            data: {
-                ...data,
+    const existingKeys = new Set(existing.map(e => `${e.source}:${e.sourceId}`));
+
+    // 2. Filter out notifications that already exist and deduplicate the list to create
+    const uniqueToCreateMap = new Map<string, any>();
+
+    for (const n of notifications) {
+        const key = `${n.source}:${n.sourceId}`;
+        if (!existingKeys.has(key) && !uniqueToCreateMap.has(key)) {
+            uniqueToCreateMap.set(key, n);
+        }
+    }
+
+    const toCreate = Array.from(uniqueToCreateMap.values());
+
+    // 3. Create missing notifications in batch
+    if (toCreate.length > 0) {
+        await db.notification.createMany({
+            data: toCreate.map(n => ({
+                ...n,
                 isRead: false
-            }
+            }))
         });
     }
 }
