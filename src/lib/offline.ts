@@ -104,8 +104,6 @@ export async function syncQueue(
         return { processed: 0, conflicts: [] };
     }
 
-    console.log(`Starting sync: ${allKeys.length} mutation(s) queued`);
-
     // Detect and resolve intra-queue conflicts
     const { resolved, conflicts } = detectAndResolveConflicts(allValues, strategy);
 
@@ -134,7 +132,6 @@ export async function syncQueue(
     // Execute resolved mutations in chronological order
     let processed = 0;
     for (const entry of resolved) {
-        console.log(`Processing mutation: ${entry.action}`, entry.data);
         const action = getAction(entry.action);
 
         // Find the IDB key for this entry so we can delete it on success
@@ -152,7 +149,6 @@ export async function syncQueue(
         try {
             const result = await action(entry.data);
             if (result.success) {
-                console.log(`Action ${entry.action} success`);
                 if (idbKey !== null) await db.delete('mutationQueue', idbKey);
                 processed++;
             } else {
@@ -165,8 +161,6 @@ export async function syncQueue(
     }
 
     notifySyncListeners();
-    console.log(`Sync complete: ${processed} processed, ${conflicts.length} conflict(s) resolved`);
 
     return { processed, conflicts };
 }
-
