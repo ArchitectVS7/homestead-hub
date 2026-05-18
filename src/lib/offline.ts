@@ -152,7 +152,6 @@ export async function syncQueue(
         try {
             const result = await action(entry.data);
             if (result.success) {
-                console.log(`Action ${entry.action} success`);
                 if (idbKey !== null) await db.delete('mutationQueue', idbKey);
                 processed++;
             } else {
