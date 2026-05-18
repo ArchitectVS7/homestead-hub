@@ -116,7 +116,7 @@ interface Column<T> {
     className?: string;
 }
 
-interface TableProps<T> {
+interface DataTableProps<T> {
     data: T[];
     columns: Column<T>[];
     keyExtractor: (item: T) => string;
@@ -132,7 +132,7 @@ function DataTable<T>({
     onRowClick,
     isLoading,
     emptyMessage = "No data available",
-}: TableProps<T>) {
+}: DataTableProps<T>) {
     if (isLoading) {
         return (
             <div className="w-full h-48 flex items-center justify-center bg-white rounded-xl border border-soil-200">
@@ -190,13 +190,5 @@ export {
     TableRow,
     TableCell,
     TableCaption,
-    DataTable, // Renamed from "Table" to avoid conflict, legacy usage needs update? Or just alias?
-    // Actually, to avoid breaking existing "import { Table } from ...", I should probably keep the name if generic.
-    // BUT the new files expect { Table, TableBody... }.
-    // Let's resolve this by exporting the Primitives as named exports.
-    // And the generic one as... "SharedTable"? Or keep it as "Table" but wait, that conflicts with TableRoot.
-    // The existing import was: `import { Table } from "@/components/ui/table";` used as `<Table data={...} ... />`
-    // The NEW imports are: `import { Table, TableBody... }` used as `<Table><TableBody>...`
-    // This is a conflict.
-    // I will rename the High Level one to "DataTable" and fix the call sites.
+    DataTable,
 }
